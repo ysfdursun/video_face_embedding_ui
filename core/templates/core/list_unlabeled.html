@@ -1,0 +1,45 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Etiketlenmemiş Yüzler{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="mb-0">Etiketlenmemiş Yüzler</h1>
+            <p class="lead text-muted">Toplam {{ unlabeled_faces_count }} adet yüz etiketlenmeyi bekliyor.</p>
+        </div>
+        <div>
+            {% if unlabeled_faces_count > 0 %}
+                <a href="{% url 'core:label_all_faces' %}" class="btn btn-success btn-lg">Sırayla Etiketlemeye Başla</a>
+            {% else %}
+                <a href="{% url 'core:home' %}" class="btn btn-primary">Yeni Video Yükle</a>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if unlabeled_faces %}
+        <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-3">
+            {% for face in unlabeled_faces %}
+                <div class="col">
+                    <a href="{% url 'core:label_all_faces' %}?face_path={{ face.path|urlencode }}" class="text-decoration-none">
+                        <div class="card h-100 shadow-sm card-hover">
+                            <img src="{{ MEDIA_URL }}{{ face.path }}" class="card-img-top" alt="Yüz" style="object-fit: cover; height: 150px;">
+                            <div class="card-body text-center">
+                                <small class="text-muted">{{ face.movie_title }}</small>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="text-center py-5">
+            <h4 class="text-success">Tebrikler!</h4>
+            <p class="fs-5">Etiketlenmeyi bekleyen hiç yüz kalmadı.</p>
+        </div>
+    {% endif %}
+
+</div>
+{% endblock %}

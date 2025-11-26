@@ -1,0 +1,69 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Ana Sayfa{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        
+        <!-- Etiketleme Çağrısı -->
+        {% if pending_faces_count > 0 %}
+        <div class="alert alert-info text-center" role="alert">
+            <h4 class="alert-heading">Etiket Bekleyen Yüzler Var!</h4>
+            <p>Toplam <strong>{{ pending_faces_count }}</strong> adet yüz etiketlenmeyi bekliyor.</p>
+            <hr>
+            <a href="{% url 'core:label_all_faces' %}" class="btn btn-primary">Hepsini Şimdi Etiketle</a>
+        </div>
+        {% endif %}
+
+        <!-- Yeni Film Yükleme Formu -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header">
+                <h4 class="my-0 font-weight-normal">Yeni Film ve Fragman Yükle</h4>
+            </div>
+            <div class="card-body">
+                <form method="post" action="{% url 'core:home' %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+                    <button type="submit" class="btn btn-success w-100 py-2">Yükle ve İşlemi Başlat</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Yüklenen Filmler Listesi -->
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h4 class="my-0 font-weight-normal">Daha Önce Yüklenenler</h4>
+            </div>
+            <div class="card-body">
+                {% if videos %}
+                    <div class="accordion" id="videosAccordion">
+                        {% for video_filename in videos %}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse{{ forloop.counter }}">
+                                        <strong>{{ video_filename }}</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading{{ forloop.counter }}" data-bs-parent="#videosAccordion">
+                                    <div class="accordion-body">
+                                        <video controls width="100%">
+                                            <source src="{{ MEDIA_URL }}videos/{{ video_filename }}" type="video/mp4">
+                                            Tarayıcınız video etiketini desteklemiyor.
+                                        </video>
+                                        <div class="mt-3 text-end">
+                                            <a href="{% url 'core:processing_page' video_filename %}" class="btn btn-sm btn-outline-primary">Yeniden İşle</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-center text-muted mb-0">Henüz video yüklenmemiş.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Yüz Etiketle - {{ movie_title }}{% endblock %}
+
+{% block content %}
+<div class="container text-center">
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow-sm">
+                <div class="card-header">
+                    <h4 class="my-0">"{{ movie_title }}" filminden bir yüz etiketle</h4>
+                </div>
+                <img src="{{ MEDIA_URL }}{{ face_path }}" class="card-img-top" alt="Etiketlenecek Yüz" style="max-height: 500px; object-fit: contain; background-color: #eee;">
+                <div class="card-body">
+                    
+                    <div id="initial-buttons">
+                        <p class="lead">Bu yüz resmi etiketleme için uygun mu?</p>
+                        <button onclick="showLabelingForm()" class="btn btn-success btn-lg mx-2 px-5">Evet, Kullanılabilir</button>
+                        
+                        <form method="post" action="{{ post_url }}" style="display: inline;">
+                            {% csrf_token %}
+                            <input type="hidden" name="face_path" value="{{ face_path }}">
+                            <input type="hidden" name="action" value="discard">
+                            <button type="submit" class="btn btn-danger btn-lg mx-2">Hayır, Kullanılamaz</button>
+                        </form>
+                        <a href="{% url 'core:list_unlabeled_faces' %}" class="btn btn-secondary btn-lg mx-2">Galeriye Dön</a>
+                        
+                        {% if next_face_path %}
+                            <a href="{% url 'core:label_all_faces' %}?face_path={{ next_face_path|urlencode }}" class="btn btn-info btn-lg mx-2">Sonraki Resme Geç</a>
+                        {% endif %}
+                    </div>
+
+                    <div id="labeling-form" style="display: none;">
+                        <h5 class="mb-3">Bu yüz hangi oyuncuya ait?</h5>
+                        <form method="post" action="{{ post_url }}">
+                            {% csrf_token %}
+                            <input type="hidden" name="face_path" value="{{ face_path }}">
+                            <input type="hidden" name="action" value="save">
+                            <div class="input-group mb-3">
+                                <select class="form-select" name="assigned_cast_name" required>
+                                    <option value="" disabled selected>Oyuncu Seçin...</option>
+                                    {% for member in cast_list %}
+                                    <option value="{{ member }}">{{ member }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-primary">Etiketi Kaydet</button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showLabelingForm() {
+    document.getElementById('initial-buttons').style.display = 'none';
+    document.getElementById('labeling-form').style.display = 'block';
+}
+</script>
+{% endblock %}
