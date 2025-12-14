@@ -89,4 +89,74 @@ def process_and_extract_faces_stream(video_path, movie_title):
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + b'' + b'\r\n')
 
+def process_and_group_faces(video_path, movie_title, frame_skip=5, sim_threshold=0.45, min_face_size=80):
+    """
+    Videodaki yA¬zleri anlŽñk olarak gruplayŽñp aynŽñ kiYiyi yeniden gA¬rdA¬Ande
+    aynŽñ klasAre kaydeder. Cikti: media/grouped_faces/<movie_title>/celebrity_xxx/*.jpg
+    """
+    out_dir = os.path.join(settings.MEDIA_ROOT, "grouped_faces", movie_title)
+    os.makedirs(out_dir, exist_ok=True)
+
+    app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+    app.prepare(ctx_id=0, det_size=(640, 640))
+
+    celebrities = []  # her eleman {"rep": np.array, "count": int}
+
+    def assign_identity(emb):
+        if not celebrities:
+            return None
+        sims = [float(np.dot(emb, c["rep"])) for c in celebrities]  # normed embedding ile kosinA¼s
+        best = int(np.argmax(sims))
+        if sims[best] > sim_threshold:
+            return best
+        return None
+
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise Exception(f"Video aAŽñlamadŽñ: {video_path}")
+
+    frame_id = 0
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        if frame_id % frame_skip:
+            frame_id += 1
+            continue
+
+        faces = app.get(frame)
+        for face in faces:
+            x1, y1, x2, y2 = face.bbox.astype(int)
+            h, w, _ = frame.shape
+            x1, y1, x2, y2 = map(int, np.clip([x1, y1, x2, y2], [0, 0, 0, 0], [w, h, w, h]))
+
+            if (x2 - x1) < min_face_size or (y2 - y1) < min_face_size:
+                continue
+
+            crop = frame[y1:y2, x1:x2]
+            if crop.size == 0:
+                continue
+
+            emb = face.normed_embedding  # zaten L2 normalize
+            idx = assign_identity(emb)
+
+            if idx is None:
+                idx = len(celebrities)
+                celebrities.append({"rep": emb, "count": 0})
+                os.makedirs(os.path.join(out_dir, f"celebrity_{idx:03d}"), exist_ok=True)
+
+            # EMA ile temsil embedding'i gA¼ncelle
+            celebrities[idx]["rep"] = 0.9 * celebrities[idx]["rep"] + 0.1 * emb
+
+            count = celebrities[idx]["count"]
+            save_path = os.path.join(out_dir, f"celebrity_{idx:03d}", f"img_{count:04d}.jpg")
+            cv2.imwrite(save_path, crop)
+            celebrities[idx]["count"] += 1
+
+        frame_id += 1
+
+    cap.release()
+    print(f"'{movie_title}' iAin {len(celebrities)} adet grup oluYtu. Cikti dizini: {out_dir}")
+    return out_dir
 

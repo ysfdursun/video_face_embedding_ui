@@ -21,6 +21,7 @@ media/
 *.mp3
 *.wav
 *.ogg
+Trailers/
 
 # Python
 __pycache__/
