@@ -7,12 +7,12 @@
     <div class="col-lg-8 mx-auto">
         
         <!-- Etiketleme Çağrısı -->
-        {% if pending_faces_count > 0 %}
+        {% if pending_groups_count > 0 %}
         <div class="alert alert-info text-center" role="alert">
-            <h4 class="alert-heading">Etiket Bekleyen Yüzler Var!</h4>
-            <p>Toplam <strong>{{ pending_faces_count }}</strong> adet yüz etiketlenmeyi bekliyor.</p>
+            <h4 class="alert-heading">Etiket Bekleyen Yüz Grupları Var!</h4>
+            <p>Toplam <strong>{{ pending_groups_count }}</strong> grup etiketlenmeyi bekliyor.</p>
             <hr>
-            <a href="{% url 'core:label_all_faces' %}" class="btn btn-primary">Hepsini Şimdi Etiketle</a>
+            <a href="{% url 'core:label_all_faces' %}" class="btn btn-primary">Grupları Şimdi Etiketle</a>
         </div>
         {% endif %}
 

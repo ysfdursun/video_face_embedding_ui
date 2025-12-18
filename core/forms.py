@@ -1,10 +1,12 @@
 from django import forms
+from .models import Movie
 
 class VideoUploadForm(forms.Form):
-    title = forms.CharField(
-        max_length=255, 
+    movie = forms.ModelChoiceField(
+        queryset=Movie.objects.all().order_by('title'),
         label="Film Adı",
-        widget=forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'İşlem için bir başlık girin'})
+        widget=forms.Select(attrs={'class': 'form-control'}),
+        empty_label="-- Film Seçin --"
     )
     video_file = forms.FileField(
         label="Video Dosyası",

@@ -4,14 +4,14 @@ from django.conf import settings
 from django.urls import reverse
 import os
 import shutil
-import threading
 from .forms import VideoUploadForm
-from .face_processor import process_and_extract_faces_stream, process_and_group_faces
+from .models import Movie, MovieCast
+from .face_processor import process_and_extract_faces_stream
 
 
 def get_safe_filename(name):
     """Remove special chars and spaces to build a safe filename/folder name."""
-    return "".join([c for c in name if c.isalpha() or c.isdigit() or c == ' ']).rstrip().replace(' ', '_')
+    return "".join([c for c in name if c.isalpha() or c.isdigit() or c in (' ', '_', '-')]).rstrip().replace(' ', '_')
 
 
 def welcome(request):
@@ -30,9 +30,10 @@ def home(request):
         form = VideoUploadForm(request.POST, request.FILES)
         if form.is_valid():
             video_file = request.FILES['video_file']
-            title = form.cleaned_data['title']
+            movie = form.cleaned_data['movie']
+            movie_title = movie.title
 
-            safe_title = get_safe_filename(title)
+            safe_title = get_safe_filename(movie_title)
             _, file_ext = os.path.splitext(video_file.name)
             final_filename = f"{safe_title}{file_ext}"
 
@@ -47,18 +48,19 @@ def home(request):
 
     videos = [f for f in os.listdir(video_dir) if os.path.isfile(os.path.join(video_dir, f))]
 
-    unlabeled_faces_dir = os.path.join(settings.MEDIA_ROOT, 'unlabeled_faces')
-    pending_faces_count = 0
-    if os.path.exists(unlabeled_faces_dir):
-        for movie_folder in os.listdir(unlabeled_faces_dir):
-            movie_path = os.path.join(unlabeled_faces_dir, movie_folder)
+    # Grouped faces'ten etiketlenecek grupları say
+    grouped_faces_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces')
+    pending_groups_count = 0
+    if os.path.exists(grouped_faces_dir):
+        for movie_folder in os.listdir(grouped_faces_dir):
+            movie_path = os.path.join(grouped_faces_dir, movie_folder)
             if os.path.isdir(movie_path):
-                pending_faces_count += len([f for f in os.listdir(movie_path) if f.endswith('.jpg')])
+                pending_groups_count += len([f for f in os.listdir(movie_path) if f.startswith('celebrity_') and os.path.isdir(os.path.join(movie_path, f))])
 
     return render(request, 'core/home.html', {
         'form': form,
         'videos': videos,
-        'pending_faces_count': pending_faces_count,
+        'pending_groups_count': pending_groups_count,
     })
 
 
@@ -73,24 +75,14 @@ def stream_video_processing(request, movie_filename):
     video_path = os.path.join(settings.MEDIA_ROOT, 'videos', movie_filename)
     movie_title = os.path.splitext(movie_filename)[0]
 
-    def _background_grouping():
-        try:
-            out_dir = os.path.join(settings.MEDIA_ROOT, "grouped_faces", movie_title)
-            if os.path.exists(out_dir) and any(os.scandir(out_dir)):
-                print(f"Grouping skipped: {out_dir} already exists.")
-                return
-            print(f"Grouping started: {movie_title}")
-            process_and_group_faces(video_path, movie_title)
-        except Exception as e:
-            print(f"Grouping error: {e}")
-
-    threading.Thread(target=_background_grouping, daemon=True).start()
-
     try:
-        stream = process_and_extract_faces_stream(video_path, movie_title)
+        # UNIFIED PIPELINE: Extract + Group aynı anda (1 pass)
+        stream = process_and_extract_faces_stream(video_path, movie_title, group_faces=True)
         return StreamingHttpResponse(stream, content_type='multipart/x-mixed-replace; boundary=frame')
     except Exception as e:
         print(f"Stream error: {e}")
+        import traceback
+        traceback.print_exc()
         return redirect('core:home')
 
 
@@ -117,109 +109,126 @@ def list_unlabeled_faces(request):
     return render(request, 'core/list_unlabeled.html', context)
 
 
+def delete_single_face(request):
+    """AJAX ile tek bir fotoğrafı sil"""
+    from django.http import JsonResponse
+    
+    if request.method == 'POST':
+        face_path = request.POST.get('face_path')
+        if face_path:
+            # Forward slash'i sistem path'ine çevir
+            face_path_parts = face_path.split('/')
+            full_path = os.path.join(settings.MEDIA_ROOT, *face_path_parts)
+            
+            print(f"[DELETE] Received: {face_path}")
+            print(f"[DELETE] Full path: {full_path}")
+            print(f"[DELETE] Exists: {os.path.isfile(full_path)}")
+            
+            if os.path.isfile(full_path):
+                try:
+                    os.remove(full_path)
+                    print(f"[DELETE] ✓ SUCCESS")
+                    return JsonResponse({'success': True})
+                except Exception as e:
+                    print(f"[DELETE] ✗ ERROR: {e}")
+                    return JsonResponse({'success': False, 'message': str(e)})
+            else:
+                print(f"[DELETE] ✗ FILE NOT FOUND")
+                return JsonResponse({'success': False, 'message': 'Dosya bulunamadı'})
+        return JsonResponse({'success': False, 'message': 'face_path eksik'})
+    return JsonResponse({'success': False, 'message': 'Geçersiz istek'})
+
+
 def label_all_faces(request):
-    """Iterate through all unlabeled faces and allow labeling/discarding."""
-    unlabeled_dir = os.path.join(settings.MEDIA_ROOT, 'unlabeled_faces')
+    """Grouped faces'i film seçerek, grup bazlı etiketle"""
+    grouped_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces')
     labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces')
-    os.makedirs(unlabeled_dir, exist_ok=True)
+    os.makedirs(grouped_dir, exist_ok=True)
     os.makedirs(labeled_dir, exist_ok=True)
 
-    # always collect full list of pending faces
-    all_unlabeled_faces = []
-    for movie_folder in sorted(os.listdir(unlabeled_dir)):
-        movie_path = os.path.join(unlabeled_dir, movie_folder)
-        if os.path.isdir(movie_path):
-            for filename in sorted(os.listdir(movie_path)):
-                if filename.endswith('.jpg'):
-                    all_unlabeled_faces.append(os.path.join('unlabeled_faces', movie_folder, filename))
-
+    selected_movie = request.GET.get('movie') or request.POST.get('movie')
+    
+    # Film seçilmemişse, film listesini göster
+    if not selected_movie and request.method == 'GET':
+        movies_with_groups = []
+        if os.path.isdir(grouped_dir):
+            for movie_folder in sorted(os.listdir(grouped_dir)):
+                movie_path = os.path.join(grouped_dir, movie_folder)
+                if os.path.isdir(movie_path):
+                    group_count = len([f for f in os.listdir(movie_path) if f.startswith('celebrity_') and os.path.isdir(os.path.join(movie_path, f))])
+                    if group_count > 0:
+                        movies_with_groups.append({'name': movie_folder, 'group_count': group_count})
+        
+        return render(request, 'core/label_face_filesystem.html', {
+            'action': 'select_movie',
+            'movies': movies_with_groups
+        })
+    
+    if not selected_movie:
+        return redirect('core:label_all_faces')
+    
+    movie_path = os.path.join(grouped_dir, selected_movie)
+    if not os.path.isdir(movie_path):
+        return redirect('core:label_all_faces')
+    
+    # POST isteği - grup etiketle veya sil
     if request.method == 'POST':
-        face_path_relative = request.POST.get('face_path')
         action = request.POST.get('action')
-
-        next_face_path = None
-        try:
-            current_index = all_unlabeled_faces.index(face_path_relative)
-            if current_index + 1 < len(all_unlabeled_faces):
-                next_face_path = all_unlabeled_faces[current_index + 1]
-        except ValueError:
-            pass
-
-        if face_path_relative and action:
-            face_path_full = os.path.join(settings.MEDIA_ROOT, face_path_relative)
-            base_name = os.path.splitext(face_path_full)[0]
-            jpg_path = f"{base_name}.jpg"
-            npy_path = f"{base_name}.npy"
-
-            if action == 'discard':
-                if os.path.exists(jpg_path):
-                    os.remove(jpg_path)
-                if os.path.exists(npy_path):
-                    os.remove(npy_path)
-
-            elif action == 'save':
-                cast_name = request.POST.get('assigned_cast_name')
-                if cast_name:
-                    safe_cast_name = get_safe_filename(cast_name)
-                    new_cast_dir = os.path.join(labeled_dir, safe_cast_name)
-                    os.makedirs(new_cast_dir, exist_ok=True)
-
-                    file_count = len(os.listdir(new_cast_dir))
-                    new_jpg_path = os.path.join(new_cast_dir, f"face_{file_count + 1}.jpg")
-                    new_npy_path = os.path.join(new_cast_dir, f"face_{file_count + 1}.npy")
-
-                    if os.path.exists(jpg_path):
-                        shutil.move(jpg_path, new_jpg_path)
-                    if os.path.exists(npy_path):
-                        shutil.move(npy_path, new_npy_path)
-
-        if next_face_path:
-            return redirect(f"{reverse('core:label_all_faces')}?face_path={next_face_path}")
-        else:
-            return redirect('core:list_unlabeled_faces')
-
-    if not all_unlabeled_faces:
-        return redirect('core:list_unlabeled_faces')
-
-    current_face_path = request.GET.get('face_path')
-    if current_face_path:
-        current_face_path = os.path.normpath(current_face_path)
-        if current_face_path not in all_unlabeled_faces:
-            current_face_path = all_unlabeled_faces[0]
-    else:
-        current_face_path = all_unlabeled_faces[0]
-
-    next_face_path_for_button = None
+        group_id = request.POST.get('group_id')
+        
+        if action == 'discard' and group_id:
+            group_path = os.path.join(movie_path, group_id)
+            if os.path.isdir(group_path):
+                shutil.rmtree(group_path)
+        
+        elif action == 'save' and group_id:
+            cast_name = request.POST.get('assigned_cast_name')
+            if cast_name:
+                safe_cast_name = get_safe_filename(cast_name)
+                new_cast_dir = os.path.join(labeled_dir, safe_cast_name)
+                os.makedirs(new_cast_dir, exist_ok=True)
+                
+                group_path = os.path.join(movie_path, group_id)
+                if os.path.isdir(group_path):
+                    for filename in os.listdir(group_path):
+                        src = os.path.join(group_path, filename)
+                        if os.path.isfile(src):
+                            dst = os.path.join(new_cast_dir, f"{selected_movie}_{group_id}_{filename}")
+                            shutil.move(src, dst)
+                    os.rmdir(group_path)
+        
+        return redirect(f'{reverse("core:label_all_faces")}?movie={selected_movie}')
+    
+    # GET - grupları göster
+    all_groups = []
+    for group_folder in sorted(os.listdir(movie_path)):
+        if group_folder.startswith('celebrity_'):
+            group_path = os.path.join(movie_path, group_folder)
+            if os.path.isdir(group_path):
+                faces = sorted([f for f in os.listdir(group_path) if f.endswith('.jpg')])
+                if faces:
+                    all_groups.append({
+                        'id': group_folder,
+                        'faces': [f'grouped_faces/{selected_movie}/{group_folder}/{f}' for f in faces]
+                    })
+    
+    # Film cast listesi
+    movie_cast_list = []
     try:
-        current_index = all_unlabeled_faces.index(current_face_path)
-        if current_index + 1 < len(all_unlabeled_faces):
-            next_face_path_for_button = all_unlabeled_faces[current_index + 1]
-    except ValueError:
-        pass
-
-    try:
-        movie_title_for_face = current_face_path.split(os.sep)[1]
-    except IndexError:
-        movie_title_for_face = "Unknown Movie"
-
+        movie = Movie.objects.filter(title__iexact=selected_movie).first()
+        if movie:
+            cast_members = MovieCast.objects.filter(movie=movie).select_related('actor')
+            movie_cast_list = sorted([cast.actor.name for cast in cast_members])
+    except Exception as e:
+        print(f"Cast fetch error: {e}")
+    
     dir_cast_list = [d.replace('_', ' ') for d in os.listdir(labeled_dir) if os.path.isdir(os.path.join(labeled_dir, d))]
-
-    predefined_cast_list = []
-    try:
-        actors_file_path = os.path.join(settings.BASE_DIR, 'core', 'actors.txt')
-        with open(actors_file_path, 'r', encoding='utf-8') as f:
-            predefined_cast_list = [line.strip() for line in f if line.strip()]
-    except FileNotFoundError:
-        print("Warning: 'core/actors.txt' not found.")
-
-    combined_cast_list = sorted(list(set(dir_cast_list + predefined_cast_list)))
-
-    context = {
-        'face_path': current_face_path,
-        'next_face_path': next_face_path_for_button,
-        'movie_title': movie_title_for_face,
-        'cast_list': combined_cast_list,
-        'post_url': reverse('core:label_all_faces'),
-    }
-    return render(request, 'core/label_face_filesystem.html', context)
+    combined_cast_list = sorted(list(set(movie_cast_list + dir_cast_list)))
+    
+    return render(request, 'core/label_face_filesystem.html', {
+        'action': 'label_groups',
+        'movie_title': selected_movie,
+        'groups': all_groups,
+        'cast_list': combined_cast_list
+    })
 

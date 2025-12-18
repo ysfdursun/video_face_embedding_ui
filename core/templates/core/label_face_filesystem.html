@@ -1,64 +1,377 @@
 {% extends 'core/base.html' %}
 {% load static %}
 
-{% block title %}Yüz Etiketle - {{ movie_title }}{% endblock %}
+{% block title %}Yüz Etiketleme Sistemi{% endblock %}
 
 {% block content %}
-<div class="container text-center">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+<div class="container-fluid px-4 py-4" style="background: #f9fafb;">
+    
+    <!-- FİLM SEÇİM AŞAMASI -->
+    {% if action == 'select_movie' %}
     <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h4 class="my-0">"{{ movie_title }}" filminden bir yüz etiketle</h4>
-                </div>
-                <img src="{{ MEDIA_URL }}{{ face_path }}" class="card-img-top" alt="Etiketlenecek Yüz" style="max-height: 500px; object-fit: contain; background-color: #eee;">
-                <div class="card-body">
-                    
-                    <div id="initial-buttons">
-                        <p class="lead">Bu yüz resmi etiketleme için uygun mu?</p>
-                        <button onclick="showLabelingForm()" class="btn btn-success btn-lg mx-2 px-5">Evet, Kullanılabilir</button>
-                        
-                        <form method="post" action="{{ post_url }}" style="display: inline;">
-                            {% csrf_token %}
-                            <input type="hidden" name="face_path" value="{{ face_path }}">
-                            <input type="hidden" name="action" value="discard">
-                            <button type="submit" class="btn btn-danger btn-lg mx-2">Hayır, Kullanılamaz</button>
-                        </form>
-                        <a href="{% url 'core:list_unlabeled_faces' %}" class="btn btn-secondary btn-lg mx-2">Galeriye Dön</a>
-                        
-                        {% if next_face_path %}
-                            <a href="{% url 'core:label_all_faces' %}?face_path={{ next_face_path|urlencode }}" class="btn btn-info btn-lg mx-2">Sonraki Resme Geç</a>
-                        {% endif %}
-                    </div>
-
-                    <div id="labeling-form" style="display: none;">
-                        <h5 class="mb-3">Bu yüz hangi oyuncuya ait?</h5>
-                        <form method="post" action="{{ post_url }}">
-                            {% csrf_token %}
-                            <input type="hidden" name="face_path" value="{{ face_path }}">
-                            <input type="hidden" name="action" value="save">
-                            <div class="input-group mb-3">
-                                <select class="form-select" name="assigned_cast_name" required>
-                                    <option value="" disabled selected>Oyuncu Seçin...</option>
-                                    {% for member in cast_list %}
-                                    <option value="{{ member }}">{{ member }}</option>
-                                    {% endfor %}
-                                </select>
-                                <button type="submit" class="btn btn-primary">Etiketi Kaydet</button>
-                            </div>
-                        </form>
-                    </div>
-
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #1f2937;">
+                        <i class="bi bi-film me-2" style="color: #2563eb;"></i>Film Seçimi
+                    </h2>
+                    <p class="text-muted mb-0">Etiketlemek istediğiniz filmi seçin</p>
                 </div>
             </div>
         </div>
     </div>
+    
+    {% if movies %}
+    <div class="row g-4">
+        {% for movie in movies %}
+        <div class="col-md-6 col-lg-4 col-xl-3">
+            <a href="{% url 'core:label_all_faces' %}?movie={{ movie.name }}" 
+               class="card movie-card h-100 text-decoration-none border-0 shadow-sm">
+                <div class="card-body text-center p-4">
+                    <div class="mb-3">
+                        <i class="bi bi-camera-reels" style="font-size: 3rem; color: #6c5ce7;"></i>
+                    </div>
+                    <h5 class="card-title fw-semibold mb-3" style="color: #2c3e50;">{{ movie.name }}</h5>
+                    <div class="d-flex justify-content-center gap-2">
+                        <span class="badge rounded-pill bg-primary px-3 py-2">
+                            <i class="bi bi-people-fill me-1"></i>{{ movie.group_count }} Grup
+                        </span>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-light border text-center py-5">
+        <i class="bi bi-inbox" style="font-size: 4rem; color: #95a5a6;"></i>
+        <h5 class="mt-3 mb-2">Henüz İşlenmiş Film Yok</h5>
+        <p class="text-muted mb-0">Lütfen önce video yükleyin ve işleyin.</p>
+    </div>
+    {% endif %}
+    
+    <!-- GRUP ETİKETLEME AŞAMASI -->
+    {% elif action == 'label_groups' %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: #2c3e50;">
+                        <i class="bi bi-camera-reels me-2"></i>{{ movie_title }}
+                    </h2>
+                    <p class="text-muted mb-0">
+                        <i class="bi bi-people-fill me-1"></i>{{ groups|length }} grup mevcut
+                    </p>
+                </div>
+                <a href="{% url 'core:label_all_faces' %}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left me-2"></i>Geri Dön
+                </a>
+            </div>
+        </div>
+    </div>
+    
+    {% if groups %}
+    <!-- Film Seviyesi Accordion -->
+    <div class="accordion mb-4" id="movieAccordion">
+        <div class="accordion-item border-0 shadow-sm">
+            <h2 class="accordion-header" id="headingMovie">
+                <button class="accordion-button" type="button" 
+                        data-bs-toggle="collapse" 
+                        data-bs-target="#collapseMovie" 
+                        aria-expanded="true" 
+                        aria-controls="collapseMovie"
+                        style="background: #6c5ce7; color: white; font-size: 1.1rem; border-radius: 8px 8px 0 0;">
+                    <i class="bi bi-collection-fill me-2"></i>
+                    <strong>Tüm Gruplar</strong>
+                    <span class="badge bg-white text-dark ms-3 px-3">{{ groups|length }} grup</span>
+                </button>
+            </h2>
+            <div id="collapseMovie" 
+                 class="accordion-collapse collapse show" 
+                 aria-labelledby="headingMovie" 
+                 data-bs-parent="#movieAccordion">
+                <div class="accordion-body p-3" style="background: #f8f9fa;">
+    
+    <!-- Gruplar Accordion -->
+    <div class="accordion" id="groupsAccordion">
+        {% for group in groups %}
+        <div class="accordion-item mb-3 border-0 shadow-sm">
+            <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                <button class="accordion-button collapsed" type="button" 
+                        data-bs-toggle="collapse" 
+                        data-bs-target="#collapse{{ forloop.counter }}" 
+                        aria-expanded="false" 
+                        aria-controls="collapse{{ forloop.counter }}"
+                        style="background: white; color: #2c3e50; border-left: 4px solid #3498db; border-radius: 6px;">
+                    <i class="bi bi-people-fill me-2" style="color: #3498db;"></i>
+                    <strong>{{ group.id }}</strong>
+                    <span class="badge bg-info ms-3 px-3">
+                        <i class="bi bi-person-badge me-1"></i>{{ group.faces|length }} yüz
+                    </span>
+                </button>
+            </h2>
+            <div id="collapse{{ forloop.counter }}" 
+                 class="accordion-collapse collapse" 
+                 aria-labelledby="heading{{ forloop.counter }}" 
+                 data-bs-parent="#groupsAccordion">
+                <div class="accordion-body p-4" style="background: white;">
+                
+                    <!-- Yüzleri Grid Şeklinde Göster -->
+                    <div class="row g-3 mb-4" style="max-height: 450px; overflow-y: auto;">
+                        {% for face_path in group.faces %}
+                        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+                            <div class="position-relative face-item" data-face-path="{{ face_path }}">
+                                <img src="{{ MEDIA_URL }}{{ face_path }}" 
+                                     class="img-fluid w-100" 
+                                     style="aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: pointer; 
+                                            box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                
+                                <!-- Hover'da Çıkan Sil Butonu -->
+                                <div class="delete-overlay position-absolute top-0 start-0 w-100 h-100 
+                                            d-flex align-items-center justify-content-center" 
+                                            style="border-radius: 8px;">
+                                    <button type="button" 
+                                            class="btn btn-danger btn-sm delete-single-btn shadow" 
+                                            onclick="deleteSingleFace('{{ face_path }}', this)">
+                                        <i class="bi bi-trash3-fill"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                
+                    <!-- Toplu Etiketleme Formu -->
+                    <div class="border-top pt-4 mt-3">
+                        <form method="post" class="row g-3" id="saveForm{{ forloop.counter }}">
+                            {% csrf_token %}
+                            <input type="hidden" name="movie" value="{{ movie_title }}">
+                            <input type="hidden" name="group_id" value="{{ group.id }}">
+                            
+                            <div class="col-12">
+                                <label class="form-label fw-semibold" style="color: #2c3e50;">
+                                    <i class="bi bi-person-check me-2"></i>Bu grup hangi oyuncuya ait?
+                                </label>
+                                <select class="form-select form-select-lg" name="assigned_cast_name" required 
+                                        style="border: 2px solid #e0e0e0; border-radius: 8px;">
+                                    <option value="" disabled selected>Oyuncu seçiniz...</option>
+                                    {% for member in cast_list %}
+                                    <option value="{{ member }}">{{ member }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <button type="submit" name="action" value="save" 
+                                        class="btn btn-success w-100 py-2 fw-semibold" 
+                                        style="border-radius: 8px;">
+                                    <i class="bi bi-check-circle me-2"></i>Grubu Kaydet
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div class="col-md-6">
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="movie" value="{{ movie_title }}">
+                                <input type="hidden" name="group_id" value="{{ group.id }}">
+                                <button type="submit" name="action" value="discard" 
+                                        class="btn btn-outline-danger w-100 py-2 fw-semibold" 
+                                        style="border-radius: 8px;">
+                                    <i class="bi bi-trash3 me-2"></i>Grubu Sil
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-light border text-center py-5">
+        <i class="bi bi-info-circle" style="font-size: 4rem; color: #3498db;"></i>
+        <h5 class="mt-3 mb-2">Bu Film İçin Grup Bulunamadı</h5>
+        <p class="text-muted mb-0">Tüm gruplar etiketlenmiş olabilir.</p>
+    </div>
+    {% endif %}
+    
+    {% endif %}
 </div>
 
 <script>
-function showLabelingForm() {
-    document.getElementById('initial-buttons').style.display = 'none';
-    document.getElementById('labeling-form').style.display = 'block';
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function deleteSingleFace(facePath, button) {
+    // Butonu devre dışı bırak
+    button.disabled = true;
+    button.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+    
+    // CSRF token al
+    const csrftoken = getCookie('csrftoken');
+    
+    // AJAX isteği
+    fetch('{% url "core:delete_single_face" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrftoken
+        },
+        body: 'face_path=' + encodeURIComponent(facePath)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Fotoğrafın parent col'unu bul ve kaldır
+            const parentCol = button.closest('[class*="col-"]');
+            if (parentCol) {
+                parentCol.style.transition = 'all 0.3s ease';
+                parentCol.style.opacity = '0';
+                parentCol.style.transform = 'scale(0.8)';
+                setTimeout(() => {
+                    parentCol.remove();
+                    updateGroupBadge(button);
+                }, 300);
+            }
+        } else {
+            alert('❌ ' + data.message);
+            button.disabled = false;
+            button.innerHTML = '🗑️ Sil';
+        }
+    })
+    .catch(error => {
+        alert('Silme işlemi başarısız oldu');
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-trash3-fill"></i>';
+    });
+}
+
+function updateGroupBadge(button) {
+    // Grubun kalan fotoğraf sayısını güncelle
+    const accordion = button.closest('.accordion-collapse');
+    if (accordion) {
+        const remainingPhotos = accordion.querySelectorAll('[class*="col-"]').length;
+        const badge = accordion.closest('.accordion-item').querySelector('.badge');
+        if (badge) {
+            badge.innerHTML = '<i class="bi bi-person-badge me-1"></i>' + remainingPhotos + ' yüz';
+        }
+    }
 }
 </script>
+
+<style>
+/* Film Kartları */
+.movie-card {
+    transition: all 0.3s ease;
+    background: white;
+}
+
+.movie-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 12px 24px rgba(108, 92, 231, 0.15) !important;
+}
+
+/* Accordion Stilleri */
+.accordion-button:not(.collapsed) {
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    box-shadow: none;
+    border-color: transparent;
+}
+
+/* Yüz Item'ı Hover */
+.face-item {
+    position: relative;
+    overflow: hidden;
+}
+
+.face-item img {
+    transition: all 0.3s ease;
+}
+
+.face-item:hover img {
+    transform: scale(1.05);
+    filter: brightness(0.8);
+}
+
+/* Delete Overlay */
+.delete-overlay {
+    background: rgba(231, 76, 60, 0.9);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.face-item:hover .delete-overlay {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.delete-single-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.delete-single-btn:hover {
+    transform: scale(1.1);
+}
+
+/* Scrollbar Styling */
+.row::-webkit-scrollbar {
+    width: 10px;
+}
+
+.row::-webkit-scrollbar-track {
+    background: #f1f3f5;
+    border-radius: 10px;
+}
+
+.row::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #6c5ce7 0%, #a29bfe 100%);
+    border-radius: 10px;
+}
+
+.row::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #5f4dd1 0%, #8b85e0 100%);
+}
+
+/* Form Elements */
+.form-select:focus {
+    border-color: #6c5ce7;
+    box-shadow: 0 0 0 0.25rem rgba(108, 92, 231, 0.25);
+}
+
+.btn {
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+</style>
 {% endblock %}

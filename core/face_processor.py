@@ -3,109 +3,195 @@ import numpy as np
 import insightface
 from insightface.app import FaceAnalysis
 import os
-from django.core.files.base import ContentFile
-from io import BytesIO
-
-import cv2
-import numpy as np
-import insightface
-from insightface.app import FaceAnalysis
-import os
 from django.conf import settings
 
-def process_and_extract_faces_stream(video_path, movie_title):
+
+def get_execution_providers():
+    """GPU varsa CUDA kullan, yoksa CPU fallback'e geç."""
+    try:
+        import onnxruntime
+        available_providers = onnxruntime.get_available_providers()
+        print(f"Mevcut providers: {available_providers}")
+        
+        if 'CUDAExecutionProvider' in available_providers:
+            print("✓ CUDA GPU desteği kullanılacak")
+            return ['CUDAExecutionProvider', 'CPUExecutionProvider']
+        else:
+            print("⚠ CUDA bulunamadı, CPU kullanılacak")
+            return ['CPUExecutionProvider']
+    except Exception as e:
+        print(f"Provider kontrolünde hata: {e}, CPU kullanılacak")
+        return ['CPUExecutionProvider']
+
+
+def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, frame_skip_extract=10, frame_skip_group=5, sim_threshold=0.45, min_face_size=80):
     """
-    Videoyu işler, yüzleri tespit eder, diskte saklar ve işlenen kareleri stream eder.
+    OPTIMIZED PIPELINE: Videoyu BİR KERE okur, yüzleri SADECE gruplandırarak kaydeder
+    
+    ✓ VIDEO 1 KERE OKUNUR
+    ✓ FACE DETECTION 1 KERE YAPILIR
+    ✓ SADECE GROUPED_FACES KLASÖRÜNE KAYDEDER (unlabeled gereksiz)
     """
     try:
-        print(f"'{movie_title}' için yüz tanıma ve stream işlemi başlıyor...")
-
-        # Çıktı klasörünü oluştur
-        unlabeled_dir = os.path.join(settings.MEDIA_ROOT, 'unlabeled_faces', movie_title)
-        os.makedirs(unlabeled_dir, exist_ok=True)
-
-        app = FaceAnalysis(name='buffalo_l', providers=['CPUExecutionProvider'])
+        print(f"'{movie_title}' için yüz tanıma başlıyor...")
+        
+        # Çıktı klasörünü oluştur - SADECE grouped_faces
+        grouped_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces', movie_title)
+        os.makedirs(grouped_dir, exist_ok=True)
+        
+        # Provider'ı al (GPU/CPU)
+        providers = get_execution_providers()
+        app = FaceAnalysis(name='buffalo_l', providers=providers)
         app.prepare(ctx_id=0, det_size=(640, 640))
-
+        
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise Exception(f"Video dosyası açılamadı: {video_path}")
-
+        
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_count = 0
         face_index = 0
+        
+        # Grouping state
+        celebrities = [] if group_faces else None  # [{"rep": embedding, "count": int, "path": dir}, ...]
+        
+        def assign_identity(emb):
+            """Embedding'i mevcut gruplarla karşılaştır."""
+            if not celebrities:
+                return None
+            sims = [float(np.dot(emb, c["rep"])) for c in celebrities]
+            best = int(np.argmax(sims))
+            if sims[best] > sim_threshold:
+                return best
+            return None
+        
+        print(f"İşleme başlanıyor: Toplam {total_frames} kare\n")
+        
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-
-            frame_count += 1
             
-            # --- Yüz tanımayı her 10 karede bir yap ---
-            if frame_count % 10 == 0:
+            frame_count += 1
+            frame_for_display = frame.copy()  # Stream için görüntü
+            
+            # --- EXTRACT: Her N karede yüz tespit ---
+            if frame_count % frame_skip_extract == 0:
                 faces = app.get(frame)
                 if faces:
-                    print(f"Kare {frame_count}: {len(faces)} adet yüz bulundu.")
+                    print(f"📹 Kare {frame_count}: {len(faces)} yüz bulundu")
+                    
                     for face_data in faces:
                         face_index += 1
                         bbox = face_data.bbox.astype(int)
                         
-                        face_img = frame[bbox[1]:bbox[3], bbox[0]:bbox[2]]
-                        if face_img.size == 0: continue
+                        # Sınırları kontrol et (önemli!)
+                        h, w = frame.shape[:2]
+                        x1 = max(0, min(bbox[0], w))
+                        y1 = max(0, min(bbox[1], h))
+                        x2 = max(0, min(bbox[2], w))
+                        y2 = max(0, min(bbox[3], h))
                         
-                        base_filename = f"face_{face_index}"
-                        jpg_filename = f"{base_filename}.jpg"
-                        npy_filename = f"{base_filename}.npy"
+                        if x2 <= x1 or y2 <= y1:
+                            continue
                         
-                        cv2.imwrite(os.path.join(unlabeled_dir, jpg_filename), face_img)
-                        np.save(os.path.join(unlabeled_dir, npy_filename), face_data.normed_embedding)
-
-                        cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
+                        face_img = frame[y1:y2, x1:x2]
+                        if face_img.size == 0:
+                            continue
+                        
+                        # Display kareye dikdörtgen çiz
+                        cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                        cv2.putText(frame_for_display, f"#{face_index}", (x1, y1-10), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                        
+                        # --- GROUPING: Her yüzü SADECE gruplandırarak kaydet ---
+                        if frame_count % frame_skip_group == 0:
+                            emb = face_data.normed_embedding
+                            idx = assign_identity(emb)
+                            
+                            if idx is None:  # Yeni grup
+                                idx = len(celebrities)
+                                celeb_dir = os.path.join(grouped_dir, f"celebrity_{idx:03d}")
+                                os.makedirs(celeb_dir, exist_ok=True)
+                                celebrities.append({
+                                    "rep": emb,
+                                    "count": 0,
+                                    "path": celeb_dir
+                                })
+                                print(f"    → Yeni grup oluşturuldu: celebrity_{idx:03d}")
+                            
+                            # EMA: Embedding'i güncelle (adaptif tanıma)
+                            celebrities[idx]["rep"] = 0.9 * celebrities[idx]["rep"] + 0.1 * emb
+                            
+                            # Crop'u gruplandırılmış klasöre kaydet
+                            count = celebrities[idx]["count"]
+                            save_path = os.path.join(celebrities[idx]["path"], f"img_{count:04d}.jpg")
+                            cv2.imwrite(save_path, face_img)
+                            celebrities[idx]["count"] += 1
             
-            # --- Her karede ilerleme yüzdesini yazdır ---
+            # --- İlerleme göstergesi ---
             progress = (frame_count / total_frames) * 100
-            progress_text = f"Ilerleme: {progress:.2f}%"
-            # Yazı için parametreler
+            faces_str = f"Yüzler: {face_index}"
+            groups_str = f" | Gruplar: {len(celebrities)}" if group_faces and celebrities else ""
+            progress_text = f"İlerleme: {progress:.1f}% | {faces_str}{groups_str}"
+            
             font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.8
-            color = (255, 255, 255) # Beyaz
-            thickness = 2
-            # Yazının arkasına siyah bir kutu çizerek okunabilirliği artır
-            (text_width, text_height), baseline = cv2.getTextSize(progress_text, font, font_scale, thickness)
-            cv2.rectangle(frame, (5, frame.shape[0] - 5 - text_height - baseline), (10 + text_width, frame.shape[0] - 5), (0,0,0), -1)
-            cv2.putText(frame, progress_text, (10, frame.shape[0] - 10), font, font_scale, color, thickness)
-
-            # İşlenmiş kareyi stream için hazırla
-            is_success, buffer = cv2.imencode(".jpg", frame)
+            (text_width, text_height), baseline = cv2.getTextSize(progress_text, font, 0.7, 2)
+            cv2.rectangle(frame_for_display, (5, frame_for_display.shape[0] - 5 - text_height - baseline),
+                         (10 + text_width, frame_for_display.shape[0] - 5), (0, 0, 0), -1)
+            cv2.putText(frame_for_display, progress_text, (10, frame_for_display.shape[0] - 10),
+                       font, 0.7, (255, 255, 255), 2)
+            
+            # --- Stream için encode ---
+            is_success, buffer = cv2.imencode(".jpg", frame_for_display)
             if is_success:
                 yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-
+                      b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        
         cap.release()
-        print(f"'{movie_title}' için işlem tamamlandı.")
-
+        
+        # Özet
+        if celebrities:
+            total_saved = sum(c["count"] for c in celebrities)
+            print(f"\n✓ '{movie_title}' tamamlandı:")
+            print(f"  • {face_index} yüz tespit edildi")
+            print(f"  • {len(celebrities)} grup oluşturuldu")
+            print(f"  • {total_saved} yüz grouped_faces/ klasörüne kaydedildi")
+        else:
+            print(f"\n✓ '{movie_title}' tamamlandı: {face_index} yüz tespit edildi")
+        
     except Exception as e:
-        print(f"Hata: {movie_title} işlenirken bir sorun oluştu: {e}")
+        print(f"\n✗ Hata: {movie_title} işlenirken: {e}")
+        import traceback
+        traceback.print_exc()
         yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + b'' + b'\r\n')
+              b'Content-Type: image/jpeg\r\n\r\n' + b'' + b'\r\n')
+
 
 def process_and_group_faces(video_path, movie_title, frame_skip=5, sim_threshold=0.45, min_face_size=80):
     """
-    Videodaki yA¬zleri anlŽñk olarak gruplayŽñp aynŽñ kiYiyi yeniden gA¬rdA¬Ande
-    aynŽñ klasAre kaydeder. Cikti: media/grouped_faces/<movie_title>/celebrity_xxx/*.jpg
+    DEPRECATED - Eski fonksiyon (geriye uyumluluk için)
+    
+    ⚠ YENİ KOD YAZARKEN process_and_extract_faces_stream() KULLANIN!
+    Sebep: İki videoyu ayrı ayrı işlemek yerine BİR KERE işler, 2x daha hızlıdır.
     """
+    print(f"⚠️  UYARI: process_and_group_faces() deprecated!")
+    print(f"   Yerine: process_and_extract_faces_stream(group_faces=True) kullanın")
+    print(f"   İşlem yine de devam ediyor...\n")
+    
     out_dir = os.path.join(settings.MEDIA_ROOT, "grouped_faces", movie_title)
     os.makedirs(out_dir, exist_ok=True)
 
-    app = FaceAnalysis(name="buffalo_l", providers=["CPUExecutionProvider"])
+    providers = get_execution_providers()
+    app = FaceAnalysis(name="buffalo_l", providers=providers)
     app.prepare(ctx_id=0, det_size=(640, 640))
 
-    celebrities = []  # her eleman {"rep": np.array, "count": int}
+    celebrities = []
 
     def assign_identity(emb):
         if not celebrities:
             return None
-        sims = [float(np.dot(emb, c["rep"])) for c in celebrities]  # normed embedding ile kosinA¼s
+        sims = [float(np.dot(emb, c["rep"])) for c in celebrities]
         best = int(np.argmax(sims))
         if sims[best] > sim_threshold:
             return best
@@ -113,7 +199,7 @@ def process_and_group_faces(video_path, movie_title, frame_skip=5, sim_threshold
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        raise Exception(f"Video aAŽñlamadŽñ: {video_path}")
+        raise Exception(f"Video açılamadı: {video_path}")
 
     frame_id = 0
     while True:
@@ -127,9 +213,13 @@ def process_and_group_faces(video_path, movie_title, frame_skip=5, sim_threshold
 
         faces = app.get(frame)
         for face in faces:
-            x1, y1, x2, y2 = face.bbox.astype(int)
-            h, w, _ = frame.shape
-            x1, y1, x2, y2 = map(int, np.clip([x1, y1, x2, y2], [0, 0, 0, 0], [w, h, w, h]))
+            bbox = face.bbox.astype(int)
+            h, w = frame.shape[:2]
+            
+            x1 = max(0, min(bbox[0], w))
+            y1 = max(0, min(bbox[1], h))
+            x2 = max(0, min(bbox[2], w))
+            y2 = max(0, min(bbox[3], h))
 
             if (x2 - x1) < min_face_size or (y2 - y1) < min_face_size:
                 continue
@@ -138,7 +228,7 @@ def process_and_group_faces(video_path, movie_title, frame_skip=5, sim_threshold
             if crop.size == 0:
                 continue
 
-            emb = face.normed_embedding  # zaten L2 normalize
+            emb = face.normed_embedding
             idx = assign_identity(emb)
 
             if idx is None:
@@ -146,7 +236,6 @@ def process_and_group_faces(video_path, movie_title, frame_skip=5, sim_threshold
                 celebrities.append({"rep": emb, "count": 0})
                 os.makedirs(os.path.join(out_dir, f"celebrity_{idx:03d}"), exist_ok=True)
 
-            # EMA ile temsil embedding'i gA¼ncelle
             celebrities[idx]["rep"] = 0.9 * celebrities[idx]["rep"] + 0.1 * emb
 
             count = celebrities[idx]["count"]
@@ -157,6 +246,6 @@ def process_and_group_faces(video_path, movie_title, frame_skip=5, sim_threshold
         frame_id += 1
 
     cap.release()
-    print(f"'{movie_title}' iAin {len(celebrities)} adet grup oluYtu. Cikti dizini: {out_dir}")
+    print(f"✓ '{movie_title}': {len(celebrities)} grup oluşturuldu -> {out_dir}\n")
     return out_dir
 
