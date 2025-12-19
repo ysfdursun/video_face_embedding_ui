@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import cv2
 import numpy as np
 import insightface
@@ -44,6 +45,10 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
         app = FaceAnalysis(name='buffalo_l', providers=providers)
         app.prepare(ctx_id=0, det_size=(640, 640))
         
+        # Face alignment için gerekli
+        from insightface.utils import face_align
+        face_aligner = face_align
+        
         cap = cv2.VideoCapture(video_path)
         if not cap.isOpened():
             raise Exception(f"Video dosyası açılamadı: {video_path}")
@@ -85,7 +90,7 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
                         face_index += 1
                         bbox = face_data.bbox.astype(int)
                         
-                        # Sınırları kontrol et (önemli!)
+                        # Sınırları kontrol et (display için)
                         h, w = frame.shape[:2]
                         x1 = max(0, min(bbox[0], w))
                         y1 = max(0, min(bbox[1], h))
@@ -95,10 +100,6 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
                         if x2 <= x1 or y2 <= y1:
                             continue
                         
-                        face_img = frame[y1:y2, x1:x2]
-                        if face_img.size == 0:
-                            continue
-                        
                         # Display kareye dikdörtgen çiz
                         cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 255, 0), 2)
                         cv2.putText(frame_for_display, f"#{face_index}", (x1, y1-10), 
@@ -106,6 +107,14 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
                         
                         # --- GROUPING: Her yüzü SADECE gruplandırarak kaydet ---
                         if frame_count % frame_skip_group == 0:
+                            # ALIGNED CROP: Sadece kayıt anında yap (performans için)
+                            if hasattr(face_data, 'kps') and face_data.kps is not None:
+                                face_img = face_align.norm_crop(frame, landmark=face_data.kps, image_size=112)
+                            else:
+                                face_img = frame[y1:y2, x1:x2]
+                            
+                            if face_img.size == 0:
+                                continue
                             emb = face_data.normed_embedding
                             idx = assign_identity(emb)
                             
@@ -131,9 +140,9 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
             
             # --- İlerleme göstergesi ---
             progress = (frame_count / total_frames) * 100
-            faces_str = f"Yüzler: {face_index}"
-            groups_str = f" | Gruplar: {len(celebrities)}" if group_faces and celebrities else ""
-            progress_text = f"İlerleme: {progress:.1f}% | {faces_str}{groups_str}"
+            faces_str = f"Faces: {face_index}"
+            groups_str = f" | Groups: {len(celebrities)}" if group_faces and celebrities else ""
+            progress_text = f"Progress: {progress:.1f}% | {faces_str}{groups_str}"
             
             font = cv2.FONT_HERSHEY_SIMPLEX
             (text_width, text_height), baseline = cv2.getTextSize(progress_text, font, 0.7, 2)
@@ -165,8 +174,9 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
         import traceback
         traceback.print_exc()
         yield (b'--frame\r\n'
-              b'Content-Type: image/jpeg\r\n\r\n' + b'' + b'\r\n')
+            b'Content-Type: image/jpeg\r\n\r\n' + b'' + b'\r\n')
 
+        
 
 def process_and_group_faces(video_path, movie_title, frame_skip=5, sim_threshold=0.45, min_face_size=80):
     """

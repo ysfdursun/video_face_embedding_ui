@@ -27,27 +27,35 @@
     <div class="row g-4">
         {% for movie in movies %}
         <div class="col-md-6 col-lg-4 col-xl-3">
-            <a href="{% url 'core:label_all_faces' %}?movie={{ movie.name }}" 
-               class="card movie-card h-100 text-decoration-none border-0 shadow-sm">
-                <div class="card-body text-center p-4">
-                    <div class="mb-3">
-                        <i class="bi bi-camera-reels" style="font-size: 3rem; color: #6c5ce7;"></i>
+            <div class="card movie-card h-100 border-0 shadow-sm position-relative" style="overflow: visible;">
+                <button class="btn btn-danger btn-sm movie-delete-btn position-absolute" 
+                        style="top: 10px; right: 10px; z-index: 10; opacity: 0; transition: opacity 0.2s;"
+                        onclick="deleteMovie(event, '{{ movie.name }}')"
+                        title="Filmi Sil">
+                    <i class="bi bi-trash3-fill"></i>
+                </button>
+                <a href="{% url 'core:label_all_faces' %}?movie={{ movie.name }}" 
+                   class="text-decoration-none d-block h-100">
+                    <div class="card-body text-center p-4">
+                        <div class="mb-3">
+                            <i class="bi bi-camera-reels" style="font-size: 3rem; color: #2563eb;"></i>
+                        </div>
+                        <h5 class="card-title fw-semibold mb-3" style="color: #1f2937;">{{ movie.name }}</h5>
+                        <div class="d-flex justify-content-center gap-2">
+                            <span class="badge rounded-pill px-3 py-2" style="background: #2563eb;">
+                                <i class="bi bi-people-fill me-1"></i>{{ movie.group_count }} Grup
+                            </span>
+                        </div>
                     </div>
-                    <h5 class="card-title fw-semibold mb-3" style="color: #2c3e50;">{{ movie.name }}</h5>
-                    <div class="d-flex justify-content-center gap-2">
-                        <span class="badge rounded-pill bg-primary px-3 py-2">
-                            <i class="bi bi-people-fill me-1"></i>{{ movie.group_count }} Grup
-                        </span>
-                    </div>
-                </div>
-            </a>
+                </a>
+            </div>
         </div>
         {% endfor %}
     </div>
     {% else %}
     <div class="alert alert-light border text-center py-5">
-        <i class="bi bi-inbox" style="font-size: 4rem; color: #95a5a6;"></i>
-        <h5 class="mt-3 mb-2">Henüz İşlenmiş Film Yok</h5>
+        <i class="bi bi-inbox" style="font-size: 4rem; color: #9ca3af;"></i>
+        <h5 class="mt-3 mb-2" style="color: #374151;">Henüz İşlenmiş Film Yok</h5>
         <p class="text-muted mb-0">Lütfen önce video yükleyin ve işleyin.</p>
     </div>
     {% endif %}
@@ -58,14 +66,14 @@
         <div class="col-12">
             <div class="d-flex justify-content-between align-items-center">
                 <div>
-                    <h2 class="fw-bold mb-1" style="color: #2c3e50;">
-                        <i class="bi bi-camera-reels me-2"></i>{{ movie_title }}
+                    <h2 class="fw-bold mb-1" style="color: #1f2937;">
+                        <i class="bi bi-camera-reels me-2" style="color: #2563eb;"></i>{{ movie_title }}
                     </h2>
                     <p class="text-muted mb-0">
                         <i class="bi bi-people-fill me-1"></i>{{ groups|length }} grup mevcut
                     </p>
                 </div>
-                <a href="{% url 'core:label_all_faces' %}" class="btn btn-outline-secondary">
+                <a href="{% url 'core:label_all_faces' %}" class="btn" style="background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb;">
                     <i class="bi bi-arrow-left me-2"></i>Geri Dön
                 </a>
             </div>
@@ -82,17 +90,17 @@
                         data-bs-target="#collapseMovie" 
                         aria-expanded="true" 
                         aria-controls="collapseMovie"
-                        style="background: #6c5ce7; color: white; font-size: 1.1rem; border-radius: 8px 8px 0 0;">
+                        style="background: #2563eb; color: white; font-size: 1.1rem; border-radius: 8px 8px 0 0;">
                     <i class="bi bi-collection-fill me-2"></i>
                     <strong>Tüm Gruplar</strong>
-                    <span class="badge bg-white text-dark ms-3 px-3">{{ groups|length }} grup</span>
+                    <span class="badge ms-3 px-3" style="background: white; color: #2563eb;">{{ groups|length }} grup</span>
                 </button>
             </h2>
             <div id="collapseMovie" 
                  class="accordion-collapse collapse show" 
                  aria-labelledby="headingMovie" 
                  data-bs-parent="#movieAccordion">
-                <div class="accordion-body p-3" style="background: #f8f9fa;">
+                <div class="accordion-body p-3" style="background: #f9fafb;">
     
     <!-- Gruplar Accordion -->
     <div class="accordion" id="groupsAccordion">
@@ -104,10 +112,10 @@
                         data-bs-target="#collapse{{ forloop.counter }}" 
                         aria-expanded="false" 
                         aria-controls="collapse{{ forloop.counter }}"
-                        style="background: white; color: #2c3e50; border-left: 4px solid #3498db; border-radius: 6px;">
-                    <i class="bi bi-people-fill me-2" style="color: #3498db;"></i>
+                        style="background: white; color: #1f2937; border-left: 4px solid #2563eb; border-radius: 6px;">
+                    <i class="bi bi-people-fill me-2" style="color: #2563eb;"></i>
                     <strong>{{ group.id }}</strong>
-                    <span class="badge bg-info ms-3 px-3">
+                    <span class="badge ms-3 px-3" style="background: #dbeafe; color: #1e40af;">
                         <i class="bi bi-person-badge me-1"></i>{{ group.faces|length }} yüz
                     </span>
                 </button>
@@ -145,17 +153,13 @@
                 
                     <!-- Toplu Etiketleme Formu -->
                     <div class="border-top pt-4 mt-3">
-                        <form method="post" class="row g-3" id="saveForm{{ forloop.counter }}">
-                            {% csrf_token %}
-                            <input type="hidden" name="movie" value="{{ movie_title }}">
-                            <input type="hidden" name="group_id" value="{{ group.id }}">
-                            
+                        <div class="row g-3">
                             <div class="col-12">
-                                <label class="form-label fw-semibold" style="color: #2c3e50;">
-                                    <i class="bi bi-person-check me-2"></i>Bu grup hangi oyuncuya ait?
+                                <label class="form-label fw-semibold" style="color: #1f2937;">
+                                    <i class="bi bi-person-check-fill me-2" style="color: #2563eb;"></i>Bu grup hangi oyuncuya ait?
                                 </label>
-                                <select class="form-select form-select-lg" name="assigned_cast_name" required 
-                                        style="border: 2px solid #e0e0e0; border-radius: 8px;">
+                                <select class="form-select form-select-lg" name="assigned_cast_name" id="castSelect{{ forloop.counter }}" required 
+                                        style="border: 2px solid #e5e7eb; border-radius: 8px;">
                                     <option value="" disabled selected>Oyuncu seçiniz...</option>
                                     {% for member in cast_list %}
                                     <option value="{{ member }}">{{ member }}</option>
@@ -164,25 +168,32 @@
                             </div>
                             
                             <div class="col-md-6">
-                                <button type="submit" name="action" value="save" 
-                                        class="btn btn-success w-100 py-2 fw-semibold" 
-                                        style="border-radius: 8px;">
-                                    <i class="bi bi-check-circle me-2"></i>Grubu Kaydet
-                                </button>
+                                <form method="post" class="h-100">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="movie" value="{{ movie_title }}">
+                                    <input type="hidden" name="group_id" value="{{ group.id }}">
+                                    <input type="hidden" name="assigned_cast_name" id="castHidden{{ forloop.counter }}">
+                                    <button type="submit" name="action" value="save" 
+                                            class="btn w-100 py-3 fw-semibold" 
+                                            onclick="document.getElementById('castHidden{{ forloop.counter }}').value = document.getElementById('castSelect{{ forloop.counter }}').value;"
+                                            style="background: #10b981; color: white; border-radius: 8px; border: none;">
+                                        <i class="bi bi-check-circle-fill me-2"></i>Grubu Kaydet
+                                    </button>
+                                </form>
                             </div>
-                        </form>
-                        
-                        <div class="col-md-6">
-                            <form method="post">
-                                {% csrf_token %}
-                                <input type="hidden" name="movie" value="{{ movie_title }}">
-                                <input type="hidden" name="group_id" value="{{ group.id }}">
-                                <button type="submit" name="action" value="discard" 
-                                        class="btn btn-outline-danger w-100 py-2 fw-semibold" 
-                                        style="border-radius: 8px;">
-                                    <i class="bi bi-trash3 me-2"></i>Grubu Sil
-                                </button>
-                            </form>
+                            
+                            <div class="col-md-6">
+                                <form method="post" class="h-100">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="movie" value="{{ movie_title }}">
+                                    <input type="hidden" name="group_id" value="{{ group.id }}">
+                                    <button type="submit" name="action" value="discard" 
+                                            class="btn w-100 py-3 fw-semibold" 
+                                            style="background: white; color: #dc2626; border: 2px solid #dc2626; border-radius: 8px;">
+                                        <i class="bi bi-trash3-fill me-2"></i>Grubu Sil
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -197,8 +208,8 @@
     </div>
     {% else %}
     <div class="alert alert-light border text-center py-5">
-        <i class="bi bi-info-circle" style="font-size: 4rem; color: #3498db;"></i>
-        <h5 class="mt-3 mb-2">Bu Film İçin Grup Bulunamadı</h5>
+        <i class="bi bi-info-circle" style="font-size: 4rem; color: #2563eb;"></i>
+        <h5 class="mt-3 mb-2" style="color: #374151;">Bu Film İçin Grup Bulunamadı</h5>
         <p class="text-muted mb-0">Tüm gruplar etiketlenmiş olabilir.</p>
     </div>
     {% endif %}
@@ -282,13 +293,13 @@ function updateGroupBadge(button) {
 <style>
 /* Film Kartları */
 .movie-card {
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     background: white;
 }
 
 .movie-card:hover {
     transform: translateY(-8px);
-    box-shadow: 0 12px 24px rgba(108, 92, 231, 0.15) !important;
+    box-shadow: 0 20px 25px -5px rgba(37, 99, 235, 0.1), 0 10px 10px -5px rgba(37, 99, 235, 0.04) !important;
 }
 
 /* Accordion Stilleri */
@@ -313,12 +324,12 @@ function updateGroupBadge(button) {
 
 .face-item:hover img {
     transform: scale(1.05);
-    filter: brightness(0.8);
+    filter: brightness(0.75);
 }
 
 /* Delete Overlay */
 .delete-overlay {
-    background: rgba(231, 76, 60, 0.9);
+    background: rgba(239, 68, 68, 0.95);
     opacity: 0;
     transition: opacity 0.3s ease;
     pointer-events: none;
@@ -334,10 +345,14 @@ function updateGroupBadge(button) {
     border-radius: 6px;
     font-weight: 600;
     transition: all 0.2s ease;
+    background: white;
+    color: #ef4444;
+    border: none;
 }
 
 .delete-single-btn:hover {
     transform: scale(1.1);
+    background: white;
 }
 
 /* Scrollbar Styling */
@@ -346,32 +361,102 @@ function updateGroupBadge(button) {
 }
 
 .row::-webkit-scrollbar-track {
-    background: #f1f3f5;
+    background: #f3f4f6;
     border-radius: 10px;
 }
 
 .row::-webkit-scrollbar-thumb {
-    background: linear-gradient(180deg, #6c5ce7 0%, #a29bfe 100%);
+    background: #2563eb;
     border-radius: 10px;
 }
 
 .row::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(180deg, #5f4dd1 0%, #8b85e0 100%);
+    background: #1e40af;
 }
 
 /* Form Elements */
 .form-select:focus {
-    border-color: #6c5ce7;
-    box-shadow: 0 0 0 0.25rem rgba(108, 92, 231, 0.25);
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    outline: none;
 }
 
+/* Button Hover Effects */
 .btn {
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
-.btn:hover {
+button[style*="background: #10b981"]:hover {
+    background: #059669 !important;
     transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+button[style*="color: #ef4444"]:hover {
+    background: #ef4444 !important;
+    color: white !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+button[style*="background: #f3f4f6"]:hover {
+    background: #e5e7eb !important;
+}
+
+/* Movie Card Delete Button */
+.movie-card:hover .movie-delete-btn {
+    opacity: 1 !important;
+}
+
+.movie-delete-btn:hover {
+    transform: scale(1.1);
 }
 </style>
+
+<script>
+// CSRF token'ı cookie'den al
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function deleteMovie(event, movieName) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    if (!confirm(`"${movieName}" filminin TÜM fotoğrafları silinecek. Emin misiniz?`)) {
+        return;
+    }
+    
+    const csrftoken = getCookie('csrftoken');
+    
+    fetch('/label/delete_movie/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        body: JSON.stringify({ movie_name: movieName })
+    })
+    .then(response => response.json())
+    .then(data => {
+        // Başarılı veya başarısız her durumda sayfa yenilensin
+        location.reload();
+    })
+    .catch(error => {
+        // Network hatası veya parse hatası olsa bile sayfa yenilensin
+        location.reload();
+    });
+}
+</script>
 {% endblock %}

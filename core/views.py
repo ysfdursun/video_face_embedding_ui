@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from django.http import StreamingHttpResponse
 from django.shortcuts import render, redirect
 from django.conf import settings
@@ -231,4 +232,60 @@ def label_all_faces(request):
         'groups': all_groups,
         'cast_list': combined_cast_list
     })
+
+
+from django.views.decorators.csrf import csrf_exempt
+
+@csrf_exempt
+def delete_movie(request):
+    """Delete all grouped faces for a movie (AJAX endpoint)."""
+    if request.method == 'POST':
+        import json
+        try:
+            data = json.loads(request.body)
+            movie_name = data.get('movie_name', '')
+            
+            print(f"[DELETE_MOVIE] Received request for: {movie_name}")
+            
+            if not movie_name:
+                return JsonResponse({'success': False, 'error': 'Movie name required'}, status=400)
+            
+            # Security: validate movie name (no path traversal)
+            if '..' in movie_name or '/' in movie_name or '\\' in movie_name:
+                print(f"[DELETE_MOVIE] Invalid movie name: {movie_name}")
+                return JsonResponse({'success': False, 'error': 'Invalid movie name'}, status=400)
+            
+            grouped_faces_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces')
+            movie_path = os.path.join(grouped_faces_dir, movie_name)
+            
+            print(f"[DELETE_MOVIE] Movie path: {movie_path}")
+            print(f"[DELETE_MOVIE] Exists: {os.path.exists(movie_path)}")
+            print(f"[DELETE_MOVIE] Is dir: {os.path.isdir(movie_path)}")
+            
+            # Security: ensure path is within grouped_faces
+            if not movie_path.startswith(grouped_faces_dir):
+                print(f"[DELETE_MOVIE] Path security check failed")
+                return JsonResponse({'success': False, 'error': 'Invalid path'}, status=403)
+            
+            if os.path.exists(movie_path) and os.path.isdir(movie_path):
+                try:
+                    shutil.rmtree(movie_path)
+                    print(f"[DELETE_MOVIE] ✓ Successfully deleted: {movie_path}")
+                    return JsonResponse({'success': True}, status=200)
+                except Exception as e:
+                    print(f"[DELETE_MOVIE] ✗ Error deleting: {e}")
+                    return JsonResponse({'success': False, 'error': str(e)}, status=500)
+            else:
+                print(f"[DELETE_MOVIE] ✗ Movie folder not found or not a directory")
+                return JsonResponse({'success': False, 'error': 'Movie folder not found'}, status=404)
+        except json.JSONDecodeError as e:
+            print(f"[DELETE_MOVIE] ✗ JSON parse error: {e}")
+            return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+        except Exception as e:
+            print(f"[DELETE_MOVIE] ✗ Unexpected error: {e}")
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request'}, status=405)
 
