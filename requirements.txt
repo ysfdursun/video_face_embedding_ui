@@ -4,3 +4,4 @@ opencv-python
 dlib
 insightface
 onnxruntime
+Pillow>=9.0

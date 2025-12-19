@@ -1,0 +1,244 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Aktörler Dashboard{% endblock %}
+
+{% block content %}
+
+<div class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-start mb-8">
+            <div>
+                <h1 class="text-4xl font-bold text-slate-900 mb-2">
+                    <i class="bi bi-person-circle text-sky-600 mr-3"></i>Aktörler Yönetim Paneli
+                </h1>
+                <p class="text-slate-600">Etiketlenmiş aktörleri yönet ve istatistiklerini takip et</p>
+            </div>
+            <a href="{% url 'core:home' %}" class="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-900 border border-slate-300 rounded-lg transition-colors font-medium shadow-sm">
+                <i class="bi bi-house-fill"></i>Ana Sayfaya Dön
+            </a>
+        </div>
+    
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <!-- Total Actors -->
+        <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-600 mb-1">Toplam Aktör</p>
+                    <h3 class="text-3xl font-bold text-slate-900">{{ total_actors }}</h3>
+                </div>
+                <i class="bi bi-person-vcard text-sky-600 text-4xl opacity-20"></i>
+            </div>
+        </div>
+
+        <!-- Total Photos -->
+        <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-600 mb-1">Toplam Fotoğraf</p>
+                    <h3 class="text-3xl font-bold text-slate-900">{{ total_photos }}</h3>
+                </div>
+                <i class="bi bi-image-fill text-emerald-600 text-4xl opacity-20"></i>
+            </div>
+        </div>
+
+        <!-- Avg Photos per Actor -->
+        <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-slate-600 mb-1">Orta. Fotoğraf/Aktör</p>
+                    <h3 class="text-3xl font-bold text-slate-900">
+                        {% if total_actors > 0 %}
+                            {{ total_photos|add:0|add:total_actors|floatformat:0 }}
+                        {% else %}
+                            0
+                        {% endif %}
+                    </h3>
+                </div>
+                <i class="bi bi-graph-up text-violet-600 text-4xl opacity-20"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="bg-white rounded-lg border border-slate-200 p-6 shadow-sm mb-8">
+        <form method="get" class="flex flex-col sm:flex-row gap-2">
+            <div class="flex-1">
+                <input 
+                    type="text" 
+                    name="search" 
+                    class="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    placeholder="🔍 Aktör adı ile ara..."
+                    value="{{ search_query }}"
+                >
+            </div>
+            <button type="submit" class="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap">
+                <i class="bi bi-search"></i>Ara
+            </button>
+            {% if search_query %}
+            <a href="{% url 'core:actors_dashboard' %}" class="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-900 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap">
+                <i class="bi bi-x-circle"></i>Temizle
+            </a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Actors Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+        {% if actors %}
+            {% for actor in actors %}
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all overflow-hidden group">
+                <!-- Photo Preview -->
+                <div class="relative h-48 bg-slate-100 overflow-hidden">
+                    {% if actor.preview_photos %}
+                        <div class="grid grid-cols-2 gap-0 h-full">
+                            {% for photo in actor.preview_photos %}
+                                <img src="{{ MEDIA_URL }}labeled_faces/{{ actor.name }}/{{ photo }}" 
+                                     alt="{{ actor.display_name }}"
+                                     class="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                     loading="lazy">
+                            {% endfor %}
+                        </div>
+                        <div class="absolute top-3 right-3 bg-slate-900 text-white px-3 py-1 rounded-full text-sm font-semibold">
+                            +{{ actor.photo_count }}
+                        </div>
+                    {% else %}
+                        <div class="flex items-center justify-center h-full">
+                            <i class="bi bi-image text-slate-400 text-4xl"></i>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Info -->
+                <div class="p-4">
+                    <h5 class="text-lg font-bold text-slate-900 mb-4">{{ actor.display_name }}</h5>
+
+                    <!-- Stats -->
+                    <div class="space-y-3 mb-4">
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-600"><i class="bi bi-image mr-2"></i>Fotoğraf</span>
+                            <span class="px-3 py-1 bg-sky-100 text-sky-700 rounded-full font-semibold text-xs"><i class="bi bi-image mr-1"></i>{{ actor.photo_count }}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-600"><i class="bi bi-film mr-2"></i>Film</span>
+                            <span class="px-3 py-1 bg-rose-100 text-rose-700 rounded-full font-semibold text-xs"><i class="bi bi-film mr-1"></i>{{ actor.movie_count }}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm">
+                            <span class="text-slate-600"><i class="bi bi-brightness-high mr-2"></i>Kalite</span>
+                            <span class="px-3 py-1 bg-slate-200 text-slate-700 rounded-full font-semibold text-xs">
+                                <i class="bi bi-hourglass-split mr-1"></i>—
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Movies -->
+                    {% if actor.movies %}
+                    <div class="mb-4">
+                        <p class="text-xs text-slate-600 mb-2">Filmler:</p>
+                        <div class="flex flex-wrap gap-2">
+                            {% for movie in actor.movies %}
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-medium">
+                                {{ movie }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Detail Button -->
+                    <a href="{% url 'core:actor_detail' actor.name %}" 
+                       class="w-full block text-center px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition-colors">
+                        <i class="bi bi-eye mr-2"></i>Detayları Gör
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-span-full bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 py-12 text-center md:col-span-2 lg:col-span-3 xl:col-span-4">
+                <i class="bi bi-inbox text-slate-400 text-5xl mb-4 block"></i>
+                <h5 class="text-lg font-semibold text-slate-900 mb-2">
+                    {% if search_query %}
+                        "{{ search_query }}" için sonuç bulunamadı
+                    {% else %}
+                        Henüz Etiketlenmiş Aktör Yok
+                    {% endif %}
+                </h5>
+                <p class="text-slate-600">
+                    {% if search_query %}
+                        Farklı bir arama terimini deneyin
+                    {% else %}
+                        Lütfen önce video yükleyin ve yüzleri etiketleyin
+                    {% endif %}
+                </p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Pagination -->
+    {% if actors_page.has_other_pages %}
+    <nav aria-label="Sayfa" class="flex justify-center items-center flex-wrap gap-2 mb-8">
+        {% if actors_page.has_previous %}
+        <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}" 
+           class="px-3 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg transition-colors inline-flex items-center"
+           title="İlk sayfa">
+            <i class="bi bi-chevron-double-left"></i>
+        </a>
+        <a href="?page={{ actors_page.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}" 
+           class="px-3 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg transition-colors inline-flex items-center"
+           title="Önceki sayfa">
+            <i class="bi bi-chevron-left"></i>
+        </a>
+        {% endif %}
+
+        <!-- Sayfa numaraları (ellipsis ile) -->
+        {% with current=actors_page.number total=actors_page.paginator.num_pages %}
+            {% if current > 4 %}
+                <span class="px-2 text-slate-600">...</span>
+            {% endif %}
+            
+            {% for num in actors_page.paginator.page_range %}
+                {% if num >= current|add:-2 and num <= current|add:2 or num == 1 or num == total %}
+                    {% if actors_page.number == num %}
+                    <span class="px-4 py-2 bg-sky-600 text-white rounded-lg font-semibold">{{ num }}</span>
+                    {% else %}
+                    <a href="?page={{ num }}{% if search_query %}&search={{ search_query }}{% endif %}" 
+                       class="px-4 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-sky-50 rounded-lg transition-colors">
+                        {{ num }}
+                    </a>
+                    {% endif %}
+                {% elif num == current|add:-3 or num == current|add:3 %}
+                    {% if forloop.first or forloop.counter == 2 %}
+                    {% else %}
+                    <span class="px-2 text-slate-600">...</span>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+        {% endwith %}
+
+        {% if actors_page.has_next %}
+        <a href="?page={{ actors_page.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}" 
+           class="px-3 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg transition-colors inline-flex items-center"
+           title="Sonraki sayfa">
+            <i class="bi bi-chevron-right"></i>
+        </a>
+        <a href="?page={{ actors_page.paginator.num_pages }}{% if search_query %}&search={{ search_query }}{% endif %}" 
+           class="px-3 py-2 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg transition-colors inline-flex items-center"
+           title="Son sayfa">
+            <i class="bi bi-chevron-double-right"></i>
+        </a>
+        {% endif %}
+        
+        <span class="text-sm text-slate-600 ml-4">{{ actors_page.number }} / {{ actors_page.paginator.num_pages }}</span>
+    </nav>
+    {% endif %}
+    </div>
+</div>
+
+<!-- AJAX: Kalite skorlarını lazy-load et -->
+<script>
+// Quality badge loading disabled
+</script>
+{% endblock %}

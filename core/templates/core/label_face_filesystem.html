@@ -126,13 +126,17 @@
                  data-bs-parent="#groupsAccordion">
                 <div class="accordion-body p-4" style="background: white;">
                 
-                    <!-- Yüzleri Grid Şeklinde Göster -->
-                    <div class="row g-3 mb-4" style="max-height: 450px; overflow-y: auto;">
+                    <!-- Yüzleri Grid Şeklinde Göster (Lazy Loading) -->
+                    <div class="row g-3 mb-4 face-grid" style="max-height: 450px; overflow-y: auto;" 
+                         data-group-id="{{ group.id }}">
                         {% for face_path in group.faces %}
                         <div class="col-6 col-sm-4 col-md-3 col-lg-2">
                             <div class="position-relative face-item" data-face-path="{{ face_path }}">
-                                <img src="{{ MEDIA_URL }}{{ face_path }}" 
-                                     class="img-fluid w-100" 
+                                <!-- Lazy Loading: Accordion açıldığında resimler yükleniyor -->
+                                <img data-src="{{ MEDIA_URL }}{{ face_path }}" 
+                                     src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect fill='%23f0f0f0' width='100' height='100'/%3E%3C/svg%3E"
+                                     loading="lazy"
+                                     class="img-fluid w-100 face-image" 
                                      style="aspect-ratio: 1; object-fit: cover; border-radius: 8px; cursor: pointer; 
                                             box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
                                 
@@ -165,6 +169,34 @@
                                     <option value="{{ member }}">{{ member }}</option>
                                     {% endfor %}
                                 </select>
+                                
+                                <!-- Tüm Aktörlerden Ara Butonu -->
+                                <div class="mt-2">
+                                    <button type="button" 
+                                            class="btn btn-sm btn-outline-secondary"
+                                            onclick="toggleAllActorsSearch({{ forloop.counter }})">
+                                        <i class="bi bi-search me-1"></i>Listede yok mu? Tüm aktörlerden ara
+                                    </button>
+                                </div>
+                                
+                                <!-- Gizli Arama Alanı -->
+                                <div id="allActorsSearch{{ forloop.counter }}" class="mt-3" style="display: none;">
+                                    <label class="form-label small text-muted">Tüm aktörler arasında ara:</label>
+                                    <input type="text" 
+                                           class="form-control" 
+                                           id="actorSearchInput{{ forloop.counter }}"
+                                           placeholder="Aktör adı yazın..."
+                                           onkeyup="filterAllActors({{ forloop.counter }})">
+                                    <select class="form-select mt-2" 
+                                            id="allActorsSelect{{ forloop.counter }}" 
+                                            size="5"
+                                            onchange="selectFromAllActors({{ forloop.counter }})"
+                                            style="max-height: 200px;">
+                                        {% for actor in all_actors %}
+                                        <option value="{{ actor }}">{{ actor }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
                             
                             <div class="col-md-6">
@@ -414,6 +446,98 @@ button[style*="background: #f3f4f6"]:hover {
 </style>
 
 <script>
+// Tüm aktörler arama fonksiyonları
+function toggleAllActorsSearch(groupIndex) {
+    const searchDiv = document.getElementById('allActorsSearch' + groupIndex);
+    if (searchDiv.style.display === 'none') {
+        searchDiv.style.display = 'block';
+    } else {
+        searchDiv.style.display = 'none';
+    }
+}
+
+// ✅ LAZY LOADING: Accordion açıldığında resimleri yükle
+document.querySelectorAll('.accordion-button').forEach(button => {
+    button.addEventListener('click', function() {
+        const collapseId = this.getAttribute('data-bs-target');
+        const collapseElement = document.querySelector(collapseId);
+        
+        // Biraz sonra (collapse animation sonrası) resimleri yükle
+        setTimeout(() => {
+            const faceGrid = collapseElement.querySelector('.face-grid');
+            if (faceGrid) {
+                loadFaceImages(faceGrid);
+            }
+        }, 100);
+    });
+});
+
+// Lazy loading fonksiyonu: Accordion açıldığında sadece o gruptaki resimleri yükle
+function loadFaceImages(gridElement) {
+    const images = gridElement.querySelectorAll('img.face-image[data-src]');
+    
+    // Intersection Observer kullan (viewport'ta görülen resimler için)
+    const imageObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const img = entry.target;
+                const src = img.getAttribute('data-src');
+                if (src) {
+                    img.src = src;
+                    img.removeAttribute('data-src');
+                    observer.unobserve(img);
+                }
+            }
+        });
+    }, {
+        root: gridElement,  // Grid container'ı root olarak ayarla
+        rootMargin: '50px'
+    });
+    
+    images.forEach(img => imageObserver.observe(img));
+}
+
+function filterAllActors(groupIndex) {
+    const input = document.getElementById('actorSearchInput' + groupIndex);
+    const filter = input.value.toUpperCase();
+    const select = document.getElementById('allActorsSelect' + groupIndex);
+    const options = select.getElementsByTagName('option');
+    
+    for (let i = 0; i < options.length; i++) {
+        const txtValue = options[i].textContent || options[i].innerText;
+        if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            options[i].style.display = '';
+        } else {
+            options[i].style.display = 'none';
+        }
+    }
+}
+
+function selectFromAllActors(groupIndex) {
+    const allActorsSelect = document.getElementById('allActorsSelect' + groupIndex);
+    const castSelect = document.getElementById('castSelect' + groupIndex);
+    const selectedActor = allActorsSelect.value;
+    
+    if (selectedActor) {
+        // Seçilen aktörü ana dropdown'a ekle ve seç
+        const option = document.createElement('option');
+        option.value = selectedActor;
+        option.text = selectedActor + ' ⭐';
+        option.selected = true;
+        castSelect.appendChild(option);
+        
+        // Arama alanını gizle
+        document.getElementById('allActorsSearch' + groupIndex).style.display = 'none';
+        
+        // Bilgi ver
+        const msg = document.createElement('small');
+        msg.className = 'text-success d-block mt-1';
+        msg.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Seçildi: ' + selectedActor;
+        castSelect.parentElement.appendChild(msg);
+        setTimeout(() => msg.remove(), 3000);
+    }
+}
+
 // CSRF token'ı cookie'den al
 function getCookie(name) {
     let cookieValue = null;

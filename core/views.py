@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
-from django.http import StreamingHttpResponse
+from django.http import StreamingHttpResponse, FileResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.conf import settings
 from django.urls import reverse
+from django.core.cache import cache
 import os
 import shutil
+import cv2
+import numpy as np
 from .forms import VideoUploadForm
 from .models import Movie, MovieCast
 from .face_processor import process_and_extract_faces_stream
@@ -140,6 +143,44 @@ def delete_single_face(request):
     return JsonResponse({'success': False, 'message': 'Geçersiz istek'})
 
 
+def upload_photo(request):
+    """Aktöre fotoğraf ekle (AJAX endpoint)"""
+    from django.http import JsonResponse
+    
+    if request.method == 'POST' and request.FILES.get('photo'):
+        actor_name = request.POST.get('actor_name')
+        photo_file = request.FILES['photo']
+        
+        if not actor_name:
+            return JsonResponse({'success': False, 'message': 'Aktör adı eksik'})
+        
+        # Aktör klasörünü oluştur
+        actor_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces', actor_name)
+        os.makedirs(actor_dir, exist_ok=True)
+        
+        # Dosya adını oluştur (timestamp ile unique yapılması için)
+        import time
+        ext = os.path.splitext(photo_file.name)[1]
+        filename = f"{int(time.time() * 1000)}{ext}"
+        file_path = os.path.join(actor_dir, filename)
+        
+        try:
+            # Dosyayı kaydet
+            with open(file_path, 'wb+') as destination:
+                for chunk in photo_file.chunks():
+                    destination.write(chunk)
+            
+            return JsonResponse({
+                'success': True, 
+                'message': 'Fotoğraf başarıyla yüklendi',
+                'filename': filename
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'Yükleme hatası: {str(e)}'})
+    
+    return JsonResponse({'success': False, 'message': 'Geçersiz istek'})
+
+
 def label_all_faces(request):
     """Grouped faces'i film seçerek, grup bazlı etiketle"""
     grouped_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces')
@@ -213,24 +254,45 @@ def label_all_faces(request):
                         'faces': [f'grouped_faces/{selected_movie}/{group_folder}/{f}' for f in faces]
                     })
     
-    # Film cast listesi
+    # Film cast listesi - sadece o filmin oyuncuları
     movie_cast_list = []
+    all_actors_list = []
     try:
-        movie = Movie.objects.filter(title__iexact=selected_movie).first()
+        # Filmi dosya sistemi adına göre bul (case-sensitive)
+        movie = Movie.objects.all().first()
+        for m in Movie.objects.all():
+            if get_safe_filename(m.title) == selected_movie or m.title == selected_movie:
+                movie = m
+                break
+        
+        print(f"[DEBUG] Movie found: {movie}")
+        print(f"[DEBUG] Searching for selected_movie: {selected_movie}")
+        
         if movie:
-            cast_members = MovieCast.objects.filter(movie=movie).select_related('actor')
-            movie_cast_list = sorted([cast.actor.name for cast in cast_members])
+            cast_members = MovieCast.objects.filter(movie=movie).select_related('actor').order_by('actor__name')
+            movie_cast_list = [cast.actor.name for cast in cast_members]
+            print(f"[DEBUG] Movie cast count: {len(movie_cast_list)}")
+            print(f"[DEBUG] Cast list: {movie_cast_list}")
+        else:
+            print(f"[DEBUG] Movie not found in database for: {selected_movie}")
+        
+        # Tüm aktörleri de al (cast'ta olmayan için)
+        from .models import Actor
+        all_actors_list = [actor.name for actor in Actor.objects.all().order_by('name')]
+        print(f"[DEBUG] All actors count: {len(all_actors_list)}")
     except Exception as e:
-        print(f"Cast fetch error: {e}")
+        print(f"[ERROR] Cast fetch error: {e}")
+        import traceback
+        traceback.print_exc()
     
-    dir_cast_list = [d.replace('_', ' ') for d in os.listdir(labeled_dir) if os.path.isdir(os.path.join(labeled_dir, d))]
-    combined_cast_list = sorted(list(set(movie_cast_list + dir_cast_list)))
+    print(f"[DEBUG] Rendering with cast_list={len(movie_cast_list)}, all_actors={len(all_actors_list)}")
     
     return render(request, 'core/label_face_filesystem.html', {
         'action': 'label_groups',
         'movie_title': selected_movie,
         'groups': all_groups,
-        'cast_list': combined_cast_list
+        'cast_list': movie_cast_list,  # Filmin cast'ı
+        'all_actors': all_actors_list  # Tüm aktörler
     })
 
 
@@ -289,3 +351,199 @@ def delete_movie(request):
     
     return JsonResponse({'success': False, 'error': 'Invalid request'}, status=405)
 
+
+def serve_optimized_image(request, image_path):
+    """
+    ✅ PERFORMANS OPTİMİZASYONU: Resim cache'i ve compression ile serve et
+    
+    Kullanım: 
+    - Template: <img data-src="{% url 'core:serve_optimized_image' image_path=image_path %}?w=150&q=80">
+    """
+    from PIL import Image
+    import io
+    
+    if not image_path:
+        return JsonResponse({'error': 'Image path required'}, status=400)
+    
+    # Security check: path traversal'ı engelle
+    if '..' in image_path or image_path.startswith('/'):
+        return JsonResponse({'error': 'Invalid path'}, status=403)
+    
+    # Dosya yolunu oluştur
+    full_path = os.path.join(settings.MEDIA_ROOT, image_path)
+    
+    # Security: Dosyanın MEDIA_ROOT içinde olduğundan emin ol
+    if not os.path.abspath(full_path).startswith(os.path.abspath(settings.MEDIA_ROOT)):
+        return JsonResponse({'error': 'Access denied'}, status=403)
+    
+    if not os.path.isfile(full_path):
+        return JsonResponse({'error': 'Image not found'}, status=404)
+    
+    try:
+        # Query parameters'dan width ve quality al (varsayılan değerler)
+        width = int(request.GET.get('w', 300))  # Default: 300px
+        quality = int(request.GET.get('q', 75))  # Default: 75%
+        
+        # PIL ile resmi aç ve optimize et
+        img = Image.open(full_path)
+        
+        # RGBA'yı RGB'ye dönüştür (JPEG compatibility)
+        if img.mode in ('RGBA', 'LA'):
+            rgb_img = Image.new('RGB', img.size, (255, 255, 255))
+            rgb_img.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+            img = rgb_img
+        
+        # Resize: aspect ratio'yu koru
+        img.thumbnail((width, width), Image.Resampling.LANCZOS)
+        
+        # BytesIO buffer'a kaydet
+        output = io.BytesIO()
+        img.save(output, format='JPEG', quality=quality, optimize=True)
+        output.seek(0)
+        
+        # HTTP response
+        response = FileResponse(output, content_type='image/jpeg')
+        response['Cache-Control'] = 'public, max-age=2592000'  # 30 günlük cache
+        return response
+    
+    except Exception as e:
+        print(f"[OPTIMIZE_IMAGE] Error: {e}")
+        # Fallback: orijinal resmi serve et
+        return FileResponse(open(full_path, 'rb'), content_type='image/jpeg')
+
+
+def actors_dashboard(request):
+    """
+    ✅ OPTIMIZED DASHBOARD: Hızlı yükleme ile kalite analizi
+    
+    ⚡ Optimizasyonlar:
+    1. Django cache kullan (5 dakika TTL)
+    2. Pagination (15 aktör/sayfa)
+    3. Kalite skorlarını lazy-load et (AJAX)
+    4. Dosya sistemi taramasını optimize et
+    """
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+    
+    labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces')
+    os.makedirs(labeled_dir, exist_ok=True)
+    
+    search_query = request.GET.get('search', '').strip()
+    page = request.GET.get('page', 1)
+    
+    # Cache key oluştur
+    cache_key = f"actors_list_{search_query}"
+    
+    # Cache'ten kontrol et (5 dakika)
+    actors_data = cache.get(cache_key)
+    
+    if actors_data is None:
+        print(f"[CACHE] Cache miss for {cache_key}, calculating...")
+        actors_data = []
+        
+        if os.path.isdir(labeled_dir):
+            # ⚡ Optimize: Tek bir os.listdir çağrısı
+            actor_folders = sorted([f for f in os.listdir(labeled_dir) 
+                                   if os.path.isdir(os.path.join(labeled_dir, f))])
+            
+            for actor_folder in actor_folders:
+                # Arama filtresi hemen uygula (disk taramasını azalt)
+                if search_query and search_query.lower() not in actor_folder.lower():
+                    continue
+                
+                actor_path = os.path.join(labeled_dir, actor_folder)
+                
+                # ⚡ Optimize: os.listdir sadece jpg dosyaları için
+                photos = [f for f in os.listdir(actor_path) if f.endswith('.jpg')]
+                
+                if not photos:
+                    continue
+                
+                # ⚡ Optimize: Filmler set'i sadece 1 loop'ta
+                movies_set = set()
+                for photo in photos:
+                    movie_name = photo.split('_')[0]  # İlk kısım film adı
+                    movies_set.add(movie_name)
+                
+                # ⚡ Optimize: Preview fotoları sadece dosya adları (path'ler değil)
+                preview_photos = sorted(photos)[:5]
+                
+                actors_data.append({
+                    'name': actor_folder,
+                    'display_name': actor_folder.replace('_', ' ').title(),
+                    'photo_count': len(photos),
+                    'movie_count': len(movies_set),
+                    'movies': sorted(list(movies_set)),
+                    'preview_photos': preview_photos,  # Sadece dosya adları
+                })
+        
+        # Cache'e kaydet (5 dakika)
+        cache.set(cache_key, actors_data, 300)
+        print(f"[CACHE] Cached {len(actors_data)} actors for 5 minutes")
+    else:
+        print(f"[CACHE] Cache hit for {cache_key}")
+    
+    # ⚡ Pagination: 15 aktör/sayfa
+    paginator = Paginator(actors_data, 15)
+    
+    try:
+        actors_page = paginator.page(page)
+    except PageNotAnInteger:
+        actors_page = paginator.page(1)
+    except EmptyPage:
+        actors_page = paginator.page(paginator.num_pages)
+    
+    # Toplam istatistikler (sadece görüntülenen sayfadaki)
+    total_actors = len(actors_data)
+    total_photos = sum(a['photo_count'] for a in actors_data)
+    
+    context = {
+        'actors': actors_page.object_list,
+        'actors_page': actors_page,
+        'total_actors': total_actors,
+        'total_photos': total_photos,
+        'search_query': search_query,
+        'labeled_dir': settings.MEDIA_ROOT + '/labeled_faces',  # AJAX için
+    }
+    
+    return render(request, 'core/actors_dashboard.html', context)
+
+
+def actor_detail(request, actor_name):
+    """
+    ✅ AKTÖR DETAY SAYFASI: Aktörün tüm fotoğraflarını göster + kalite analizi
+    """
+    labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces', actor_name)
+    
+    if not os.path.isdir(labeled_dir):
+        return redirect('core:actors_dashboard')
+    
+    # Tüm fotoğrafları al
+    photos = sorted([f for f in os.listdir(labeled_dir) if f.endswith('.jpg')])
+    photo_paths = [f'labeled_faces/{actor_name}/{p}' for p in photos]
+    
+    # Filmler
+    movies_set = set()
+    for photo in photos:
+        parts = photo.split('_')
+        if len(parts) > 0:
+            movie_name = parts[0]
+            movies_set.add(movie_name)
+    
+    # Fotoğraf listesi oluştur
+    photo_data = []
+    for photo in photos:
+        photo_data.append({
+            'filename': photo,
+            'path': f'labeled_faces/{actor_name}/{photo}',
+        })
+    
+    context = {
+        'actor_name': actor_name,
+        'display_name': actor_name.replace('_', ' ').title(),
+        'photos': photo_data,
+        'photo_count': len(photos),
+        'movie_count': len(movies_set),
+        'movies': sorted(list(movies_set)),
+    }
+    
+    return render(request, 'core/actor_detail.html', context)

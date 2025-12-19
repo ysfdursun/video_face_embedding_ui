@@ -1,0 +1,208 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}{{ display_name }} - Detaylar{% endblock %}
+
+{% block content %}
+
+<div class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="mb-8">
+            <a href="{% url 'core:actors_dashboard' %}" class="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 font-medium mb-4 transition-colors">
+                <i class="bi bi-chevron-left"></i>Geri Dön
+            </a>
+            <h1 class="text-4xl font-bold text-slate-900 mb-2">{{ display_name }}</h1>
+        </div>
+        
+        <!-- Photo Gallery -->
+        <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+            <div class="bg-slate-50 border-b border-slate-200 px-6 py-4">
+                <h5 class="font-bold text-slate-900">
+                    <i class="bi bi-image-multiple mr-2 text-sky-600"></i>Tüm Fotoğraflar ({{ photo_count }})
+                </h5>
+            </div>
+            <div class="p-6">
+                {% if photos %}
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex gap-2">
+                        <label for="photoUpload" class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors cursor-pointer">
+                            <i class="bi bi-plus-circle"></i>Fotoğraf Ekle
+                        </label>
+                        <input type="file" id="photoUpload" accept="image/*" multiple class="hidden">
+                    </div>
+                    <span class="text-sm text-slate-600">{{ photos|length }} Fotoğraf</span>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                    {% for photo in photos %}
+                    <div class="relative photo-item group cursor-pointer" 
+                         onclick="openImageModal('{{ MEDIA_URL }}{{ photo.path }}', '{{ display_name }}')"
+                         data-photo-path="{{ photo.path }}">
+                        <img src="{{ MEDIA_URL }}{{ photo.path }}" 
+                             alt="{{ display_name }}"
+                             class="w-full aspect-square object-cover rounded-lg shadow-sm group-hover:shadow-md transition-all group-hover:scale-105"
+                             loading="lazy">
+                        
+                        <!-- Hover Overlay -->
+                        <div class="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div class="text-center text-white flex flex-col gap-2">
+                                <i class="bi bi-eye text-2xl"></i>
+                                <div class="flex gap-2 justify-center" onclick="event.stopPropagation();">
+                                    <button onclick="deletePhoto('{{ photo.path }}', '{{ actor_name }}')" 
+                                            class="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors"
+                                            title="Fotoğrafı sil">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 py-12 text-center">
+                    <i class="bi bi-image text-slate-400 text-4xl mb-4 block"></i>
+                    <h5 class="font-semibold text-slate-900 mb-2">Fotoğraf Bulunamadı</h5>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" onclick="closeImageModal(event)">
+    <div class="bg-white rounded-lg shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col" onclick="event.stopPropagation()">
+        <div class="bg-slate-900 text-white px-6 py-4 flex justify-between items-center rounded-t-lg">
+            <h5 class="font-bold" id="modalTitle">{{ display_name }}</h5>
+            <button onclick="closeImageModal()" class="text-xl hover:text-slate-300 transition-colors">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+        <div class="flex-1 bg-slate-900 flex items-center justify-center overflow-auto rounded-b-lg">
+            <img id="modalImage" src="" alt="" class="max-w-full max-h-full object-contain">
+        </div>
+    </div>
+</div>
+
+<script>
+const ACTOR_NAME = '{{ actor_name }}';
+
+function openImageModal(imageSrc, actorName) {
+    const modal = document.getElementById('imageModal');
+    document.getElementById('modalImage').src = imageSrc;
+    document.getElementById('modalTitle').textContent = actorName;
+    modal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeImageModal(event) {
+    if (event && event.target.id !== 'imageModal') return;
+    const modal = document.getElementById('imageModal');
+    modal.classList.add('hidden');
+    document.body.style.overflow = 'auto';
+}
+
+// Escape key to close modal
+document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape') {
+        closeImageModal();
+    }
+});
+
+// Delete Photo
+function deletePhoto(photoPath, actorName) {
+    const photoElement = document.querySelector(`[data-photo-path="${photoPath}"]`);
+    
+    fetch('{% url "core:delete_single_face" %}', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: `face_path=${encodeURIComponent(photoPath)}`
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Animasyon ile kaldır
+            photoElement.style.opacity = '0';
+            photoElement.style.transform = 'scale(0.8)';
+            setTimeout(() => {
+                photoElement.remove();
+                // Sayfayı 2 saniye sonra yenile
+                setTimeout(() => location.reload(), 1000);
+            }, 300);
+        } else {
+            alert('Fotoğraf silinemedi: ' + (data.message || 'Bilinmeyen hata'));
+        }
+    })
+    .catch(error => {
+        console.error('Silme hatası:', error);
+        alert('Fotoğraf silinirken hata oluştu');
+    });
+}
+
+// Upload Photo
+document.getElementById('photoUpload')?.addEventListener('change', function(e) {
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    // Aktör klasörünü oluştur/kontrol et
+    const actorDir = `labeled_faces/${ACTOR_NAME}`;
+    
+    files.forEach((file, index) => {
+        const formData = new FormData();
+        formData.append('photo', file);
+        formData.append('actor_name', ACTOR_NAME);
+
+        // Upload progress göster
+        const uploadBtn = document.querySelector('label[for="photoUpload"]');
+        const originalText = uploadBtn.innerHTML;
+        
+        fetch('{% url "core:upload_photo" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Son dosya yüklendiyse sayfayı yenile
+                if (index === files.length - 1) {
+                    setTimeout(() => location.reload(), 500);
+                }
+            } else {
+                alert(`${file.name} yüklenemedi: ${data.message || 'Bilinmeyen hata'}`);
+            }
+        })
+        .catch(error => {
+            console.error('Upload hatası:', error);
+            alert('Fotoğraf yüklenirken hata oluştu');
+        });
+    });
+
+    // Input'u sıfırla
+    this.value = '';
+});
+
+// CSRF Token Helper
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}
