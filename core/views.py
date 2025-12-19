@@ -265,27 +265,27 @@ def label_all_faces(request):
                 movie = m
                 break
         
-        print(f"[DEBUG] Movie found: {movie}")
-        print(f"[DEBUG] Searching for selected_movie: {selected_movie}")
+        # print(f"[DEBUG] Movie found: {movie}")
+        # print(f"[DEBUG] Searching for selected_movie: {selected_movie}")
         
         if movie:
             cast_members = MovieCast.objects.filter(movie=movie).select_related('actor').order_by('actor__name')
             movie_cast_list = [cast.actor.name for cast in cast_members]
-            print(f"[DEBUG] Movie cast count: {len(movie_cast_list)}")
-            print(f"[DEBUG] Cast list: {movie_cast_list}")
+            # print(f"[DEBUG] Movie cast count: {len(movie_cast_list)}")
+            # print(f"[DEBUG] Cast list: {movie_cast_list}")
         else:
             print(f"[DEBUG] Movie not found in database for: {selected_movie}")
         
         # Tüm aktörleri de al (cast'ta olmayan için)
         from .models import Actor
         all_actors_list = [actor.name for actor in Actor.objects.all().order_by('name')]
-        print(f"[DEBUG] All actors count: {len(all_actors_list)}")
+        # print(f"[DEBUG] All actors count: {len(all_actors_list)}")
     except Exception as e:
         print(f"[ERROR] Cast fetch error: {e}")
         import traceback
         traceback.print_exc()
     
-    print(f"[DEBUG] Rendering with cast_list={len(movie_cast_list)}, all_actors={len(all_actors_list)}")
+    # print(f"[DEBUG] Rendering with cast_list={len(movie_cast_list)}, all_actors={len(all_actors_list)}")
     
     return render(request, 'core/label_face_filesystem.html', {
         'action': 'label_groups',
@@ -443,7 +443,7 @@ def actors_dashboard(request):
         if os.path.isdir(labeled_dir):
             # ⚡ Optimize: Tek bir os.listdir çağrısı
             actor_folders = sorted([f for f in os.listdir(labeled_dir) 
-                                   if os.path.isdir(os.path.join(labeled_dir, f))])
+                                if os.path.isdir(os.path.join(labeled_dir, f))])
             
             for actor_folder in actor_folders:
                 # Arama filtresi hemen uygula (disk taramasını azalt)

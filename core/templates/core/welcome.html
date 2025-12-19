@@ -3,35 +3,55 @@
 {% block title %}Hoş Geldiniz{% endblock %}
 
 {% block content %}
-<div class="container text-center py-5">
-    <h1 class="display-4 fw-bold mb-3" style="color: #1f2937;">Hoş Geldiniz!</h1>
-    <p class="lead" style="color: #6b7280;">Lütfen yapmak istediğiniz işlemi seçin:</p>
-    
-    <div class="row justify-content-center mt-5">
-        <div class="col-md-5 mb-4">
-            <div class="card shadow-sm h-100" style="border-radius: 12px; border: 2px solid #e5e7eb; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 20px 25px -5px rgba(37, 99, 235, 0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-                <div class="card-body d-flex flex-column justify-content-center align-items-center p-5">
-                    <i class="bi bi-cloud-upload-fill mb-3" style="font-size: 4rem; color: #2563eb;"></i>
-                    <h5 class="card-title fw-semibold mb-3" style="color: #1f2937;">Yeni Video Yükle</h5>
-                    <p class="card-text" style="color: #6b7280;">Yüzleri ayıklamak ve etiketlemek için yeni bir video yükleyin.</p>
-                    <a href="{% url 'core:home' %}" class="btn btn-lg mt-auto" style="background: #2563eb; color: white; border-radius: 8px; padding: 12px 40px; border: none;">
-                        <i class="bi bi-upload me-2"></i>Video Yükle
+<!-- Header -->
+<div class="text-center mb-12">
+    <h1 class="text-3xl font-bold text-slate-900 mb-3">Hoş Geldiniz!</h1>
+    <p class="text-lg text-slate-600">Lütfen yapmak istediğiniz işlemi seçin</p>
+</div>
+
+<!-- Ana Aksiyonlar -->
+<div class="max-w-4xl mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Video Yükle Kartı -->
+        <div class="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-blue-400 hover:shadow-lg transition-all">
+            <div class="flex items-start gap-4">
+                <div class="flex-shrink-0 w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i class="bi bi-cloud-upload text-3xl text-blue-600"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-bold text-slate-900 mb-2">Yeni Video Yükle</h3>
+                    <p class="text-sm text-slate-600 mb-4 leading-relaxed">
+                        Yüzleri ayıklamak ve etiketlemek için yeni bir video yükleyin
+                    </p>
+                    <a href="{% url 'core:home' %}"
+                       class="block w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-center">
+                        <i class="bi bi-upload mr-2"></i>Video Yükle
                     </a>
                 </div>
             </div>
         </div>
-        <div class="col-md-5 mb-4">
-            <div class="card shadow-sm h-100" style="border-radius: 12px; border: 2px solid #e5e7eb; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-8px)'; this.style.boxShadow='0 20px 25px -5px rgba(16, 185, 129, 0.1)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-                <div class="card-body d-flex flex-column justify-content-center align-items-center p-5">
-                    <i class="bi bi-tags-fill mb-3" style="font-size: 4rem; color: #10b981;"></i>
-                    <h5 class="card-title fw-semibold mb-3" style="color: #1f2937;">Yüzleri Etiketle</h5>
-                    <p class="card-text" style="color: #6b7280;">Daha önce ayıklanmış ve etiketlenmeyi bekleyen yüzleri etiketleyin.</p>
-                    <a href="{% url 'core:label_all_faces' %}" class="btn btn-lg mt-auto" style="background: #10b981; color: white; border-radius: 8px; padding: 12px 40px; border: none;">
-                        <i class="bi bi-pencil-square me-2"></i>Yüz Etiketle
+
+        <!-- Yüz Etiketle Kartı -->
+        <div class="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-emerald-400 hover:shadow-lg transition-all">
+            <div class="flex items-start gap-4">
+                <div class="flex-shrink-0 w-16 h-16 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <i class="bi bi-tag text-3xl text-emerald-600"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-bold text-slate-900 mb-2">Yüzleri Etiketle</h3>
+                    <p class="text-sm text-slate-600 mb-4 leading-relaxed">
+                        Daha önce ayıklanmış ve etiketlenmeyi bekleyen yüzleri etiketleyin
+                    </p>
+                    <a href="{% url 'core:label_all_faces' %}"
+                       class="block w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors text-center">
+                        <i class="bi bi-pencil-square mr-2"></i>Yüz Etiketle
                     </a>
                 </div>
             </div>
         </div>
+
     </div>
 </div>
 {% endblock %}
+

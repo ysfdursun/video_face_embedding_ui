@@ -3,77 +3,229 @@
 {% block title %}Ana Sayfa{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-8 mx-auto">
-        
-        <!-- Etiketleme Çağrısı -->
-        {% if pending_groups_count > 0 %}
-        <div class="alert text-center shadow-sm" role="alert" style="background: #dbeafe; border: 1px solid #93c5fd; border-radius: 8px;">
-            <i class="bi bi-exclamation-circle-fill" style="font-size: 3rem; color: #2563eb;"></i>
-            <h4 class="mt-3" style="color: #1e40af;">Etiket Bekleyen Yüz Grupları Var!</h4>
-            <p style="color: #1e40af;">Toplam <strong>{{ pending_groups_count }}</strong> grup etiketlenmeyi bekliyor.</p>
-            <a href="{% url 'core:label_all_faces' %}" class="btn mt-2" style="background: #2563eb; color: white; padding: 10px 30px; border-radius: 8px; border: none;">
-                <i class="bi bi-tags-fill me-2"></i>Grupları Şimdi Etiketle
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+<!-- Header -->
+<div class="text-center mb-12">
+    <h1 class="text-3xl font-bold text-slate-900 mb-3">Film Yüz Tanıma Sistemi</h1>
+    <p class="text-slate-600 text-lg">Videolardan yüzleri otomatik ayıklayın ve aktörlerle eşleştirin</p>
+</div>
+
+{% if pending_groups_count > 0 %}
+<!-- Bekleyen Gruplar Uyarısı -->
+<div class="max-w-2xl mx-auto mb-8">
+    <div class="bg-amber-50 border-l-4 border-amber-500 rounded-lg p-5">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <i class="bi bi-exclamation-triangle-fill text-2xl text-amber-600"></i>
+                <div>
+                    <h4 class="font-bold text-amber-900">{{ pending_groups_count }} grup etiket bekliyor</h4>
+                    <p class="text-sm text-amber-700">Etiketlenmemiş yüz grupları var</p>
+                </div>
+            </div>
+            <a href="{% url 'core:label_all_faces' %}" 
+               class="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors">
+                Etiketle
             </a>
-        </div>
-        {% endif %}
-
-        <!-- Yeni Film Yükleme Formu -->
-        <div class="card shadow-sm mb-4" style="border-radius: 12px;">
-            <div class="card-header" style="background: white; border-bottom: 2px solid #e5e7eb;">
-                <h4 class="my-0 fw-semibold" style="color: #1f2937;">
-                    <i class="bi bi-cloud-upload-fill me-2" style="color: #2563eb;"></i>Yeni Film ve Fragman Yükle
-                </h4>
-            </div>
-            <div class="card-body">
-                <form method="post" action="{% url 'core:home' %}" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    {{ form.as_p }}
-                    <button type="submit" class="btn w-100 py-3 fw-semibold" style="background: #10b981; color: white; border-radius: 8px; border: none;">
-                        <i class="bi bi-upload me-2"></i>Yükle ve İşlemi Başlat
-                    </button>
-                </form>
-            </div>
-        </div>
-
-        <!-- Yüklenen Filmler Listesi -->
-        <div class="card shadow-sm" style="border-radius: 12px;">
-            <div class="card-header" style="background: white; border-bottom: 2px solid #e5e7eb;">
-                <h4 class="my-0 fw-semibold" style="color: #1f2937;">
-                    <i class="bi bi-collection-play-fill me-2" style="color: #2563eb;"></i>Daha Önce Yüklenenler
-                </h4>
-            </div>
-            <div class="card-body">
-                {% if videos %}
-                    <div class="accordion" id="videosAccordion">
-                        {% for video_filename in videos %}
-                            <div class="accordion-item">
-                                <h2 class="accordion-header" id="heading{{ forloop.counter }}">
-                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="false" aria-controls="collapse{{ forloop.counter }}">
-                                        <strong>{{ video_filename }}</strong>
-                                    </button>
-                                </h2>
-                                <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" aria-labelledby="heading{{ forloop.counter }}" data-bs-parent="#videosAccordion">
-                                    <div class="accordion-body">
-                                        <video controls width="100%">
-                                            <source src="{{ MEDIA_URL }}videos/{{ video_filename }}" type="video/mp4">
-                                            Tarayıcınız video etiketini desteklemiyor.
-                                        </video>
-                                        <div class="mt-3 text-end">
-                                            <a href="{% url 'core:processing_page' video_filename %}" class="btn btn-sm" style="background: white; color: #2563eb; border: 2px solid #2563eb; border-radius: 6px; padding: 8px 20px;">
-                                                <i class="bi bi-arrow-repeat me-1"></i>Yeniden İşle
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <p class="text-center text-muted mb-0">Henüz video yüklenmemiş.</p>
-                {% endif %}
-            </div>
         </div>
     </div>
 </div>
+{% endif %}
+
+<!-- Ana Aksiyonlar -->
+<div class="max-w-4xl mx-auto mb-12">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
+        <!-- Video Yükle Kartı -->
+        <div class="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-blue-400 hover:shadow-lg transition-all">
+            <div class="flex items-start gap-4">
+                <div class="flex-shrink-0 w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i class="bi bi-cloud-upload text-3xl text-blue-600"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-bold text-slate-900 mb-2">Yeni Video Yükle</h3>
+                    <p class="text-sm text-slate-600 mb-4 leading-relaxed">
+                        Yüzleri ayıklamak ve etiketlemek için yeni bir video yükleyin
+                    </p>
+                    <button onclick="document.getElementById('uploadForm').scrollIntoView({behavior: 'smooth'})"
+                            class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors">
+                        <i class="bi bi-plus-circle mr-2"></i>Video Yükle
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Yüz Etiketle Kartı -->
+        <div class="bg-white border-2 border-slate-200 rounded-xl p-6 hover:border-emerald-400 hover:shadow-lg transition-all">
+            <div class="flex items-start gap-4">
+                <div class="flex-shrink-0 w-16 h-16 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <i class="bi bi-tag text-3xl text-emerald-600"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-bold text-slate-900 mb-2">Yüzleri Etiketle</h3>
+                    <p class="text-sm text-slate-600 mb-4 leading-relaxed">
+                        Daha önce ayıklanmış ve etiketlenmeyi bekleyen yüzleri etiketleyin
+                    </p>
+                    <a href="{% url 'core:label_all_faces' %}"
+                       class="block w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors text-center">
+                        <i class="bi bi-pencil-square mr-2"></i>Yüz Etiketle
+                    </a>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    
+    <!-- Aktörler Linki -->
+    <div class="mt-6 text-center">
+        <a href="{% url 'core:actors_dashboard' %}" 
+           class="inline-flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg transition-colors">
+            <i class="bi bi-people"></i>
+            Tüm Aktörleri Görüntüle
+        </a>
+    </div>
+</div>
+
+<!-- Video Yükleme Formu -->
+<div id="uploadForm" class="max-w-2xl mx-auto mb-12">
+    <div class="bg-white border-2 border-slate-200 rounded-xl overflow-hidden">
+        <div class="bg-slate-700 px-6 py-4 border-b border-slate-600">
+            <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                <i class="bi bi-film"></i>
+                Video Yükle ve İşle
+            </h3>
+        </div>
+        <div class="p-6">
+            <form method="post" action="{% url 'core:home' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="space-y-4 mb-6">
+                    {{ form.as_p }}
+                </div>
+                <button type="submit" 
+                        class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors">
+                    <i class="bi bi-upload mr-2"></i>Yükle ve İşleme Başla
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Yüklenen Videolar -->
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white border-2 border-slate-200 rounded-xl overflow-hidden">
+        <div class="bg-slate-700 px-6 py-4 border-b border-slate-600">
+            <div class="flex items-center justify-between">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="bi bi-collection-play"></i>
+                    Daha Önce Yüklenen Videolar
+                </h3>
+                {% if videos %}
+                <span class="px-3 py-1 bg-slate-600 text-white text-sm font-semibold rounded-lg">
+                    {{ videos|length }} video
+                </span>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="p-6">
+            {% if videos %}
+                <div class="space-y-3">
+                    {% for video_filename in videos %}
+                    <div x-data="{ open: false }" class="border border-slate-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                        <button @click="open = !open" 
+                                class="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors text-left">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <i class="bi bi-camera-video-fill text-xl text-blue-600"></i>
+                                </div>
+                                <span class="font-semibold text-slate-900 text-sm truncate">{{ video_filename }}</span>
+                            </div>
+                            <i class="bi text-slate-400 text-lg transition-transform duration-200"
+                               :class="open ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                        </button>
+                        
+                        <div x-show="open" x-collapse class="border-t border-slate-200 bg-slate-50">
+                            <div class="p-4">
+                                <video controls class="w-full rounded-lg shadow-md mb-3">
+                                    <source src="{{ MEDIA_URL }}videos/{{ video_filename }}" type="video/mp4">
+                                    Tarayıcınız video etiketini desteklemiyor.
+                                </video>
+                                <div class="flex justify-end">
+                                    <a href="{% url 'core:processing_page' video_filename %}" 
+                                       class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors text-sm">
+                                        <i class="bi bi-arrow-repeat"></i>
+                                        Yeniden İşle
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-12">
+                    <i class="bi bi-inbox text-slate-300 text-6xl mb-3"></i>
+                    <p class="text-slate-500">Henüz video yüklenmemiş</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+/* Form Styling */
+form p {
+    margin: 0;
+}
+
+form label {
+    display: block;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+}
+
+form input[type="file"],
+form input[type="text"],
+form textarea,
+form select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid #e2e8f0;
+    border-radius: 0.75rem;
+    transition: all 0.2s;
+    font-size: 0.875rem;
+    color: #1e293b;
+    background: white;
+}
+
+form input:focus,
+form textarea:focus,
+form select:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+form .helptext {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-top: 0.375rem;
+    display: block;
+    font-style: italic;
+}
+
+form ul.errorlist {
+    list-style: none;
+    padding: 0;
+    margin: 0.375rem 0 0 0;
+}
+
+form ul.errorlist li {
+    color: #dc2626;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+</style>
 {% endblock %}
