@@ -3,28 +3,24 @@
 {% block title %}Etiketleme Tamamlandı{% endblock %}
 
 {% block content %}
-<div class="container text-center">
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <div class="card border-0 shadow-sm py-5" style="border-radius: 12px; background: linear-gradient(135deg, #dbeafe 0%, #f0fdf4 100%);">
-                <div class="card-body">
-                    <i class="bi bi-trophy-fill" style="font-size: 6rem; color: #10b981;"></i>
-                    <h2 class="mt-4 mb-3 fw-bold" style="color: #1f2937;">Tebrikler!</h2>
-                    <p class="lead" style="color: #374151;">
-                        <strong>"{{ movie.title }}"</strong> filmi için çıkarılan tüm yüzleri başarıyla etiketlediniz.
-                    </p>
-                    <hr class="my-4" style="border-color: #d1d5db;">
-                    <p class="mb-4" style="color: #6b7280;">Veri setiniz artık bu etiketlenmiş yüzleri içeriyor.</p>
-                    <div class="d-flex gap-3 justify-content-center">
-                        <a href="{% url 'core:home' %}" class="btn btn-lg" style="background: #2563eb; color: white; border-radius: 8px; padding: 12px 30px; border: none;">
-                            <i class="bi bi-cloud-upload-fill me-2"></i>Yeni Bir Film Yükle
-                        </a>
-                        <a href="{% url 'core:label_all_faces' %}" class="btn btn-lg" style="background: white; color: #2563eb; border: 2px solid #2563eb; border-radius: 8px; padding: 12px 30px;">
-                            <i class="bi bi-arrow-repeat me-2"></i>Başka Film Etiketle
-                        </a>
-                    </div>
-                </div>
-            </div>
+<div class="max-w-4xl mx-auto px-4 py-8">
+    <div class="bg-gradient-to-br from-blue-50 to-green-50 rounded-xl border border-slate-200 shadow-sm py-12 px-6 text-center">
+        <div class="mb-6">
+            <i class="bi bi-trophy-fill text-9xl text-emerald-500"></i>
+        </div>
+        <h2 class="text-3xl font-bold text-slate-900 mb-4">Tebrikler!</h2>
+        <p class="text-xl text-slate-700 leading-relaxed mb-6">
+            <strong class="font-bold text-slate-900">"{{ movie.title }}"</strong> filmi için çıkarılan tüm yüzleri başarıyla etiketlediniz.
+        </p>
+        <hr class="border-slate-300 my-8 w-1/2 mx-auto">
+        <p class="text-slate-600 mb-8 text-lg">Veri setiniz artık bu etiketlenmiş yüzleri içeriyor.</p>
+        <div class="flex flex-col sm:flex-row justify-center gap-4">
+            <a href="{% url 'core:home' %}" class="inline-flex items-center justify-center px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors shadow-sm">
+                <i class="bi bi-cloud-upload-fill mr-2"></i>Yeni Bir Film Yükle
+            </a>
+            <a href="{% url 'core:label_all_faces' %}" class="inline-flex items-center justify-center px-8 py-3 bg-white text-blue-600 border-2 border-blue-600 hover:bg-blue-50 font-semibold rounded-lg transition-colors">
+                <i class="bi bi-arrow-repeat mr-2"></i>Başka Film Etiketle
+            </a>
         </div>
     </div>
 </div>

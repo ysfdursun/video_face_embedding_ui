@@ -4,36 +4,36 @@
 {% block title %}Etiketlenmemiş Yüzler{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
         <div>
-            <h1 class="mb-0 fw-bold" style="color: #1f2937;">
-                <i class="bi bi-people-fill me-2" style="color: #2563eb;"></i>Etiketlenmemiş Yüzler
+            <h1 class="text-3xl font-bold text-slate-900 mb-2 flex items-center">
+                <i class="bi bi-people-fill text-blue-600 mr-3"></i>Etiketlenmemiş Yüzler
             </h1>
-            <p class="lead text-muted">Toplam {{ unlabeled_faces_count }} adet yüz etiketlenmeyi bekliyor.</p>
+            <p class="text-lg text-slate-600">Toplam {{ unlabeled_faces_count }} adet yüz etiketlenmeyi bekliyor.</p>
         </div>
         <div>
             {% if unlabeled_faces_count > 0 %}
-                <a href="{% url 'core:label_all_faces' %}" class="btn btn-lg" style="background: #10b981; color: white; border-radius: 8px; padding: 12px 30px; border: none;">
-                    <i class="bi bi-play-circle-fill me-2"></i>Sırayla Etiketlemeye Başla
+                <a href="{% url 'core:label_all_faces' %}" class="inline-flex items-center px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-lg transition-colors shadow-sm">
+                    <i class="bi bi-play-circle-fill mr-2"></i>Sırayla Etiketlemeye Başla
                 </a>
             {% else %}
-                <a href="{% url 'core:home' %}" class="btn btn-lg" style="background: #2563eb; color: white; border-radius: 8px; padding: 12px 30px; border: none;">
-                    <i class="bi bi-cloud-upload-fill me-2"></i>Yeni Video Yükle
+                <a href="{% url 'core:home' %}" class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors shadow-sm">
+                    <i class="bi bi-cloud-upload-fill mr-2"></i>Yeni Video Yükle
                 </a>
             {% endif %}
         </div>
     </div>
 
     {% if unlabeled_faces %}
-        <div class="row row-cols-2 row-cols-md-4 row-cols-lg-6 g-3">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {% for face in unlabeled_faces %}
-                <div class="col">
-                    <a href="{% url 'core:label_all_faces' %}?face_path={{ face.path|urlencode }}" class="text-decoration-none">
-                        <div class="card h-100 border-0 shadow-sm" style="border-radius: 8px; transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-5px)'; this.style.boxShadow='0 12px 24px rgba(37, 99, 235, 0.15)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-                            <img src="{{ MEDIA_URL }}{{ face.path }}" class="card-img-top" alt="Yüz" style="object-fit: cover; height: 150px; border-radius: 8px 8px 0 0;">
-                            <div class="card-body text-center">
-                                <small style="color: #6b7280;">{{ face.movie_title }}</small>
+                <div class="group">
+                    <a href="{% url 'core:label_all_faces' %}?face_path={{ face.path|urlencode }}" class="block h-full">
+                        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-lg hover:-translate-y-1 transition-all duration-300 h-full">
+                            <img src="{{ MEDIA_URL }}{{ face.path }}" class="w-full h-40 object-cover" alt="Yüz">
+                            <div class="p-3 text-center bg-slate-50 border-t border-slate-100">
+                                <small class="text-slate-500 font-medium truncate block">{{ face.movie_title }}</small>
                             </div>
                         </div>
                     </a>
@@ -41,10 +41,10 @@
             {% endfor %}
         </div>
     {% else %}
-        <div class="text-center py-5">
-            <i class="bi bi-check-circle-fill" style="font-size: 5rem; color: #10b981;"></i>
-            <h4 class="mt-3 fw-bold" style="color: #10b981;">Tebrikler!</h4>
-            <p class="fs-5" style="color: #6b7280;">Etiketlenmeyi bekleyen hiç yüz kalmadı.</p>
+        <div class="text-center py-16 bg-white rounded-xl shadow-sm border border-slate-200">
+            <i class="bi bi-check-circle-fill text-6xl text-emerald-500 mb-4 inline-block"></i>
+            <h4 class="text-2xl font-bold text-slate-900 mb-2">Tebrikler!</h4>
+            <p class="text-slate-600 text-lg">Etiketlenmeyi bekleyen hiç yüz kalmadı.</p>
         </div>
     {% endif %}
 

@@ -4,7 +4,7 @@
 {% block title %}Yüz Etiketleme Sistemi{% endblock %}
 
 {% block content %}
-<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script defer src="{% static 'core/vendor/alpine.min.js' %}"></script>
 
 <div class="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 px-4 py-8">
     
@@ -56,27 +56,55 @@
     <!-- GRUP ETİKETLEME AŞAMASI -->
     {% elif action == 'label_groups' %}
     <div class="max-w-7xl mx-auto">
-        <div class="flex justify-between items-center mb-8">
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
             <div>
                 <h2 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
                     <i class="bi bi-camera-reels text-blue-600"></i>
                     {{ movie_title }}
                 </h2>
                 <p class="text-gray-600 mt-2">
-                    <i class="bi bi-people-fill mr-2"></i>{{ groups|length }} grup mevcut
+                    <i class="bi bi-people-fill mr-2"></i>Toplam {{ pagination.total_count }} grup
                 </p>
             </div>
-            <a href="{% url 'core:label_all_faces' %}" 
-               class="flex items-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200">
-                <i class="bi bi-arrow-left"></i>
-                Geri Dön
-            </a>
+            
+            <div class="flex items-center gap-3">
+                <!-- Pagination -->
+                {% if pagination.total_pages > 1 %}
+                <div class="flex items-center bg-white rounded-lg shadow-sm border border-gray-200">
+                    {% if pagination.has_previous %}
+                    <a href="?movie={{ movie_title }}&page={{ pagination.current_page|add:'-1' }}" class="px-3 py-2 border-r hover:bg-gray-50 text-gray-600">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                    {% else %}
+                    <span class="px-3 py-2 border-r text-gray-300 cursor-not-allowed"><i class="bi bi-chevron-left"></i></span>
+                    {% endif %}
+                    
+                    <span class="px-4 py-2 text-sm font-medium text-gray-700">
+                        Sayfa {{ pagination.current_page }} / {{ pagination.total_pages }}
+                    </span>
+                    
+                    {% if pagination.has_next %}
+                    <a href="?movie={{ movie_title }}&page={{ pagination.current_page|add:'1' }}" class="px-3 py-2 border-l hover:bg-gray-50 text-gray-600">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                    {% else %}
+                    <span class="px-3 py-2 border-l text-gray-300 cursor-not-allowed"><i class="bi bi-chevron-right"></i></span>
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <a href="{% url 'core:label_all_faces' %}" 
+                   class="flex items-center gap-2 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors duration-200">
+                    <i class="bi bi-arrow-left"></i>
+                    Geri Dön
+                </a>
+            </div>
         </div>
         
         {% if groups %}
         <div class="space-y-4">
             {% for group in groups %}
-            <div x-data="{ open: false }" class="bg-white rounded-xl shadow-sm overflow-hidden">
+            <div x-data="{ open: false }" class="bg-white rounded-xl shadow-sm overflow-hidden group-container-{{ group.id }}">
                 <button @click="open = !open" 
                         class="w-full flex items-center justify-between p-5 hover:bg-gray-50 transition-colors duration-200 border-l-4 border-blue-600">
                     <div class="flex items-center gap-3">
@@ -94,12 +122,13 @@
                      x-collapse
                      class="p-6 bg-gray-50 border-t border-gray-200">
                     
-                    <!-- Yüzler Grid -->
+                    <!-- Yüzler Grid: Optimized Images & Lazy Loading -->
                     <div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4 mb-6 max-h-96 overflow-y-auto">
                         {% for face_path in group.faces %}
                         <div class="group relative">
-                            <img src="{{ MEDIA_URL }}{{ face_path }}" 
-                                 class="w-full aspect-square object-cover rounded-lg shadow-sm group-hover:scale-105 group-hover:brightness-75 transition-all duration-200">
+                            <img src="{{ MEDIA_URL }}{{ face_path }}"
+                                 loading="lazy"
+                                 class="w-full aspect-square object-cover rounded-lg shadow-sm group-hover:scale-105 group-hover:brightness-75 transition-all duration-200 bg-gray-200">
                             
                             <div class="absolute inset-0 flex items-center justify-center bg-red-500 bg-opacity-0 group-hover:bg-opacity-90 rounded-lg transition-all duration-200 opacity-0 group-hover:opacity-100">
                                 <button type="button" 
@@ -112,7 +141,7 @@
                         {% endfor %}
                     </div>
                     
-                    <!-- Etiketleme Formu -->
+                    <!-- Etiketleme Formu (AJAX) -->
                     <div x-data="{ 
                         selectedActor: '', 
                         showSearch: false,
@@ -123,6 +152,9 @@
                             return this.allActors.filter(actor => 
                                 actor.toLowerCase().includes(this.searchQuery.toLowerCase())
                             );
+                        },
+                        performAction(action) {
+                            handleGroupAction(action, '{{ group.id }}', this.selectedActor, '{{ movie_title }}', $el);
                         }
                     }" class="border-t border-gray-300 pt-6">
                         <div class="space-y-4">
@@ -163,33 +195,20 @@
                             </div>
                             
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <form method="post">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="movie" value="{{ movie_title }}">
-                                    <input type="hidden" name="group_id" value="{{ group.id }}">
-                                    <input type="hidden" name="assigned_cast_name" :value="selectedActor">
-                                    <button type="submit" 
-                                            name="action" 
-                                            value="save"
-                                            :disabled="!selectedActor"
-                                            class="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-all duration-200 hover:-translate-y-1 hover:shadow-lg disabled:hover:translate-y-0 disabled:hover:shadow-none">
-                                        <i class="bi bi-check-circle-fill mr-2"></i>
-                                        Grubu Kaydet
-                                    </button>
-                                </form>
+                                <button type="button"
+                                        @click="performAction('save')"
+                                        :disabled="!selectedActor"
+                                        class="w-full py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition-all duration-200 hover:-translate-y-1 hover:shadow-lg disabled:hover:translate-y-0 disabled:hover:shadow-none">
+                                    <i class="bi bi-check-circle-fill mr-2"></i>
+                                    Grubu Kaydet
+                                </button>
                                 
-                                <form method="post">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="movie" value="{{ movie_title }}">
-                                    <input type="hidden" name="group_id" value="{{ group.id }}">
-                                    <button type="submit" 
-                                            name="action" 
-                                            value="discard"
-                                            class="w-full py-3 bg-white hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-lg border-2 border-red-600 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
-                                        <i class="bi bi-trash3-fill mr-2"></i>
-                                        Grubu Sil
-                                    </button>
-                                </form>
+                                <button type="button" 
+                                        @click="performAction('discard')"
+                                        class="w-full py-3 bg-white hover:bg-red-600 text-red-600 hover:text-white font-semibold rounded-lg border-2 border-red-600 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg">
+                                    <i class="bi bi-trash3-fill mr-2"></i>
+                                    Grubu Sil
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -200,12 +219,11 @@
         {% else %}
         <div class="bg-white rounded-xl shadow-sm p-12 text-center">
             <i class="bi bi-info-circle text-8xl text-blue-600"></i>
-            <h5 class="text-xl font-semibold text-gray-700 mt-4">Bu Film İçin Grup Bulunamadı</h5>
-            <p class="text-gray-500 mt-2">Tüm gruplar etiketlenmiş olabilir.</p>
+            <h5 class="text-xl font-semibold text-gray-700 mt-4">Grup Bulunamadı</h5>
+            <p class="text-gray-500 mt-2">Bu sayfada gösterilecek grup yok.</p>
         </div>
         {% endif %}
     </div>
-    
     {% endif %}
 </div>
 
@@ -223,6 +241,56 @@ function getCookie(name) {
         }
     }
     return cookieValue;
+}
+
+function handleGroupAction(action, groupId, assignedCastName, movieTitle, buttonElement) {
+    const csrftoken = getCookie('csrftoken');
+    
+    // UI Feedback
+    const container = document.querySelector(`.group-container-${groupId}`);
+    container.style.opacity = '0.5';
+    container.style.pointerEvents = 'none';
+
+    fetch(window.location.href, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken,
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+            action: action,
+            group_id: groupId,
+            assigned_cast_name: assignedCastName,
+            movie: movieTitle
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Remove element nicely
+            container.style.transition = 'all 0.5s ease';
+            container.style.transform = 'translateX(100px)';
+            container.style.opacity = '0';
+            setTimeout(() => {
+                container.remove();
+                // Check if no groups left, reload to get next page or show empty state
+                if (document.querySelectorAll('[class*="group-container-"]').length === 0) {
+                    window.location.reload();
+                }
+            }, 500);
+        } else {
+            alert('İşlem başarısız: ' + (data.message || 'Bilinmeyen hata'));
+            container.style.opacity = '1';
+            container.style.pointerEvents = 'auto';
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Bir hata oluştu.');
+        container.style.opacity = '1';
+        container.style.pointerEvents = 'auto';
+    });
 }
 
 function deleteSingleFace(facePath, button) {

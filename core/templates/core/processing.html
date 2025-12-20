@@ -3,30 +3,26 @@
 {% block title %}Film İşleniyor - {{ movie_title }}{% endblock %}
 
 {% block content %}
-<div class="container text-center">
-    <div class="row">
-        <div class="col-lg-10 mx-auto">
-            <div class="card shadow-sm">
-                <div class="card-header">
-                    <h4 class="my-0">"{{ movie_title }}" filmi işleniyor...</h4>
+<div class="max-w-5xl mx-auto">
+    <div class="bg-white border-2 border-slate-200 rounded-xl overflow-hidden shadow-sm">
+        <div class="bg-slate-700 px-6 py-4 border-b border-slate-600">
+            <h4 class="text-lg font-bold text-white my-0">"{{ movie_title }}" filmi işleniyor...</h4>
+        </div>
+        <div class="p-6 text-center">
+            <div id="processing-indicator">
+                <p class="text-lg text-slate-600 mb-4">Lütfen bekleyin. Yüz tanıma işlemi devam ediyor ve aşağıda canlı olarak gösteriliyor.</p>
+                <div class="bg-black border border-slate-300 mb-4 rounded-lg overflow-hidden aspect-video relative flex items-center justify-center">
+                    <img id="video-stream" src="{% url 'core:stream_video_processing' movie_filename %}" alt="Video Stream" class="max-w-full max-h-full w-auto h-auto" onerror="streamFinished()">
                 </div>
-                <div class="card-body">
-                    <div id="processing-indicator">
-                        <p class="lead">Lütfen bekleyin. Yüz tanıma işlemi devam ediyor ve aşağıda canlı olarak gösteriliyor.</p>
-                        <div class="video-container" style="background-color: #000; border: 1px solid #ddd; margin-bottom: 1rem;">
-                            <img id="video-stream" src="{% url 'core:stream_video_processing' movie_filename %}" alt="Video Stream" style="width: 100%; height: auto;" onerror="streamFinished()">
-                        </div>
-                    </div>
+            </div>
 
-                    <div id="completion-options" style="display: none;">
-                        <h4 class="text-success mb-3">İşlem Tamamlandı!</h4>
-                        <p class="lead">"{{ movie_title }}" filmi için yüz tanıma işlemi bitti.</p>
-                        <p>Şimdi ne yapmak istersiniz?</p>
-                        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center mt-4">
-                            <a href="{% url 'core:list_unlabeled_faces' %}" class="btn btn-success btn-lg px-4 gap-3">Etiketlemeye Başla</a>
-                            <a href="{% url 'core:home' %}" class="btn btn-outline-secondary btn-lg px-4">Ana Sayfaya Dön</a>
-                        </div>
-                    </div>
+            <div id="completion-options" style="display: none;">
+                <h4 class="text-2xl font-bold text-emerald-600 mb-3">İşlem Tamamlandı!</h4>
+                <p class="text-lg text-slate-600 mb-4">"{{ movie_title }}" filmi için yüz tanıma işlemi bitti.</p>
+                <p class="text-slate-500 mb-6">Şimdi ne yapmak istersiniz?</p>
+                <div class="flex flex-col sm:flex-row justify-center gap-4 mt-4">
+                    <a href="{% url 'core:list_unlabeled_faces' %}" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors">Etiketlemeye Başla</a>
+                    <a href="{% url 'core:home' %}" class="px-6 py-3 bg-white text-slate-700 border-2 border-slate-300 hover:bg-slate-50 font-semibold rounded-lg transition-colors">Ana Sayfaya Dön</a>
                 </div>
             </div>
         </div>

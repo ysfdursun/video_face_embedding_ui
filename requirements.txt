@@ -5,3 +5,4 @@ dlib
 insightface
 onnxruntime
 Pillow>=9.0
+requests
