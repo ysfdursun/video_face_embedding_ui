@@ -1,6 +1,6 @@
 from django.core.paginator import Paginator
 from django.db.models import Count, Prefetch
-from core.models import Movie, MovieCast
+from core.models import Movie, MovieCast, Actor
 from django.conf import settings
 import os
 
@@ -69,7 +69,9 @@ def get_movie_details(movie_id):
         return {
             'movie': movie,
             'cast': cast_list,
-            'actor_count': len(cast_list)
+            'actor_count': len(cast_list),
+            'cast_names': [c['name'] for c in cast_list],
+            'all_actors': [a.name for a in Actor.objects.all().order_by('name')]
         }
     except Movie.DoesNotExist:
         return None

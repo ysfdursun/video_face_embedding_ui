@@ -91,10 +91,58 @@ class CastManageAPI(View):
             if not movie_title or not actor_name:
                 return JsonResponse({'success': False, 'message': 'Movie and Actor required'}, status=400)
             
-            movie = Movie.objects.get(title=movie_title)
-            actor = Actor.objects.get(name=actor_name)
+            # Robust Movie Lookup
+            from core.utils.file_utils import get_safe_filename
+            movie = Movie.objects.filter(title=movie_title).first()
+            
+            if not movie:
+                 # Fallback: check safe filenames
+                 for m in Movie.objects.all():
+                    if get_safe_filename(m.title) == movie_title or m.title == movie_title:
+                        movie = m
+                        break
+            
+            if not movie:
+                return JsonResponse({'success': False, 'message': f'Movie "{movie_title}" not found'}, status=404)
+
+            try:
+                actor = Actor.objects.get(name=actor_name)
+            except Actor.DoesNotExist:
+                return JsonResponse({'success': False, 'message': f'Actor "{actor_name}" not found in DB'}, status=404)
             
             MovieCast.objects.get_or_create(movie=movie, actor=actor)
+            
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+    def delete(self, request):
+        """Remove actor from cast"""
+        try:
+            data = json.loads(request.body)
+            movie_title = data.get('movie')
+            actor_name = data.get('actor')
+            
+            if not movie_title or not actor_name:
+                return JsonResponse({'success': False, 'message': 'Movie and Actor required'}, status=400)
+            
+            # Robust Movie Lookup
+            from core.utils.file_utils import get_safe_filename
+            movie = Movie.objects.filter(title=movie_title).first()
+            if not movie:
+                 for m in Movie.objects.all():
+                    if get_safe_filename(m.title) == movie_title or m.title == movie_title:
+                        movie = m
+                        break
+            
+            if not movie:
+                return JsonResponse({'success': False, 'message': 'Movie not found'}, status=404)
+
+            actor = Actor.objects.filter(name=actor_name).first()
+            if not actor:
+                return JsonResponse({'success': False, 'message': 'Actor not found'}, status=404)
+            
+            MovieCast.objects.filter(movie=movie, actor=actor).delete()
             
             return JsonResponse({'success': True})
         except Exception as e:

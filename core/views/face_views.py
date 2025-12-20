@@ -116,20 +116,28 @@ def label_all_faces(request):
     # Film cast listesi
     movie_cast_list = []
     all_actors_list = []
+    
+    # Always fetch all actors for the dropdown
     try:
-        movie = Movie.objects.all().first()
-        for m in Movie.objects.all():
-            if get_safe_filename(m.title) == selected_movie or m.title == selected_movie:
-                movie = m
-                break
+        all_actors_list = [actor.name for actor in Actor.objects.all().order_by('name')]
+    except Exception as e:
+        print(f"[ERROR] All actors fetch error: {e}")
+
+    try:
+        movie = Movie.objects.filter(title=selected_movie).first()
+        if not movie:
+             # Fallback search
+             for m in Movie.objects.all():
+                if get_safe_filename(m.title) == selected_movie:
+                    movie = m
+                    break
         
         if movie:
             cast_members = MovieCast.objects.filter(movie=movie).select_related('actor').order_by('actor__name')
             movie_cast_list = [cast.actor.name for cast in cast_members]
-        
-        all_actors_list = [actor.name for actor in Actor.objects.all().order_by('name')]
+            
     except Exception as e:
-        print(f"[ERROR] Cast fetch error: {e}")
+        print(f"[ERROR] Movie/Cast fetch error: {e}")
     
     return render(request, 'core/label_face_filesystem.html', {
         'action': 'label_groups',

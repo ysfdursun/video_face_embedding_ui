@@ -28,45 +28,66 @@
     </script>
 </head>
 <body class="bg-slate-50">
-    <!-- Navigation -->
-    <nav class="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <a href="{% url 'core:welcome' %}" class="flex items-center gap-2 font-bold text-lg text-slate-900 hover:text-sky-600 transition-colors">
-                    <i class="bi bi-film text-sky-600"></i> 
-                    <span>Aktör Yüzü Etiketleme</span>
+    <!-- Sidebar Navigation -->
+    <button data-drawer-target="logo-sidebar" data-drawer-toggle="logo-sidebar" aria-controls="logo-sidebar" type="button" class="inline-flex items-center p-2 mt-2 ms-3 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
+        <span class="sr-only">Open sidebar</span>
+        <svg class="w-6 h-6" aria-hidden="true" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+        <path clip-rule="evenodd" fill-rule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z"></path>
+        </svg>
+    </button>
+ 
+    <aside id="logo-sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0 bg-slate-900 border-r border-slate-800" aria-label="Sidebar">
+       <div class="h-full px-3 py-4 overflow-y-auto bg-slate-900">
+          <a href="{% url 'core:welcome' %}" class="flex items-center ps-2.5 mb-8">
+             <i class="bi bi-film text-indigo-500 text-2xl me-3"></i>
+             <span class="self-center text-xl font-semibold whitespace-nowrap text-white">Yüz Etiketleme</span>
+          </a>
+          <ul class="space-y-2 font-medium">
+             <li>
+                <a href="{% url 'core:welcome' %}" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-house-door text-lg transition duration-75 text-slate-400 group-hover:text-white"></i>
+                   <span class="ms-3">Ana Sayfa</span>
                 </a>
-                <ul class="hidden md:flex items-center gap-8">
-                    <li>
-                        <a href="{% url 'core:welcome' %}" class="flex items-center gap-1 text-slate-700 hover:text-sky-600 transition-colors">
-                            <i class="bi bi-house-fill"></i>Ana Sayfa
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'core:label_all_faces' %}" class="flex items-center gap-1 text-slate-700 hover:text-sky-600 transition-colors">
-                            <i class="bi bi-tags-fill"></i>Yüzleri Etiketle
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'core:actors_dashboard' %}" class="flex items-center gap-1 text-slate-700 hover:text-sky-600 transition-colors">
-                            <i class="bi bi-people-fill"></i>Aktörler
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{% url 'core:movies_dashboard' %}" class="flex items-center gap-1 text-slate-700 hover:text-sky-600 transition-colors">
-                            <i class="bi bi-collection-play-fill"></i>Filmler
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
-
+             </li>
+             <li>
+                <a href="{% url 'core:label_all_faces' %}" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-tags text-lg transition duration-75 text-slate-400 group-hover:text-white"></i>
+                   <span class="ms-3">Yüzleri Etiketle</span>
+                </a>
+             </li>
+             <li>
+                <a href="{% url 'core:actors_dashboard' %}" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-people text-lg transition duration-75 text-slate-400 group-hover:text-white"></i>
+                   <span class="ms-3">Aktörler</span>
+                </a>
+             </li>
+             <li>
+                <a href="{% url 'core:movies_dashboard' %}" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-collection-play text-lg transition duration-75 text-slate-400 group-hover:text-white"></i>
+                   <span class="ms-3">Filmler</span>
+                </a>
+             </li>
+          </ul>
+          
+          <div class="mt-auto absolute bottom-4 left-0 w-full px-3">
+             <div class="p-4 bg-slate-800 rounded-xl border border-slate-700">
+                <p class="text-xs text-slate-400 mb-1">Sistem Durumu</p>
+                <div class="flex items-center gap-2">
+                   <span class="flex w-2.5 h-2.5 bg-green-500 rounded-full"></span>
+                   <span class="text-sm font-medium text-slate-200">Aktif</span>
+                </div>
+             </div>
+          </div>
+       </div>
+    </aside>
+ 
     <!-- Main Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {% block content %}
-        {% endblock %}
-    </main>
+    <div class="p-4 sm:ml-64">
+        <div class="p-4 mt-14 sm:mt-0">
+             {% block content %}
+             {% endblock %}
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="mt-12 border-t border-slate-200 bg-white">

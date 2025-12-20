@@ -3,6 +3,12 @@
 venv/
 env/
 
+# ignore static 
+/static
+
+# ignore django_cache folder
+django_cache/
+
 # Media files
 media/
 *.mp4
