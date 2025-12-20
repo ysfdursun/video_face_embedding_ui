@@ -51,6 +51,7 @@ def label_all_faces(request):
         data = json.loads(request.body)
         action = data.get('action')
         group_id = data.get('group_id')
+        movie_from_post = data.get('movie')  # Title from frontend
         
         if not group_id:
              return JsonResponse({'success': False, 'message': 'Missing group_id'})
@@ -63,6 +64,27 @@ def label_all_faces(request):
         elif action == 'save':
             cast_name = data.get('assigned_cast_name')
             if cast_name:
+                # 1. DB LINKING
+                try:
+                    actor, _ = Actor.objects.get_or_create(name=cast_name)
+                    
+                    target_movie = None
+                    if movie_from_post:
+                        target_movie = Movie.objects.filter(title=movie_from_post).first()
+                    
+                    if not target_movie:
+                        # Fallback to safe slug matching
+                        for m in Movie.objects.all():
+                            if get_safe_filename(m.title) == selected_movie or m.title == selected_movie:
+                                target_movie = m
+                                break
+                    
+                    if target_movie:
+                        MovieCast.objects.get_or_create(movie=target_movie, actor=actor)
+                except Exception as e:
+                    print(f"DB Link Error: {e}")
+
+                # 2. FILE MOVING
                 if face_service.save_group_as_actor(selected_movie, group_id, cast_name):
                     return JsonResponse({'success': True})
                 return JsonResponse({'success': False, 'message': 'Failed to save'})

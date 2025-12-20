@@ -33,12 +33,22 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
     ✓ FACE DETECTION 1 KERE YAPILIR
     ✓ SADECE GROUPED_FACES KLASÖRÜNE KAYDEDER (unlabeled gereksiz)
     """
+    
+    # Cache key setup
+    from django.core.cache import cache
+    from core.utils.file_utils import get_safe_filename
+    safe_movie_title = get_safe_filename(movie_title)
+    cache_key = f"processing_status_{safe_movie_title}"
+    
     try:
         print(f"'{movie_title}' için yüz tanıma başlıyor...")
         
         # Çıktı klasörünü oluştur - SADECE grouped_faces
         grouped_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces', movie_title)
         os.makedirs(grouped_dir, exist_ok=True)
+        
+        # Status: RUNNING
+        cache.set(cache_key, "running", timeout=3600)
         
         # Provider'ı al (GPU/CPU)
         providers = get_execution_providers()
@@ -84,7 +94,8 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
             if frame_count % frame_skip_extract == 0:
                 faces = app.get(frame)
                 if faces:
-                    print(f"📹 Kare {frame_count}: {len(faces)} yüz bulundu")
+                    # Log less frequently to avoid console spam if needed, but keeping for now
+                    # print(f"📹 Kare {frame_count}: {len(faces)} yüz bulundu")
                     
                     for face_data in faces:
                         face_index += 1
@@ -102,12 +113,12 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
                         
                         # Display kareye dikdörtgen çiz
                         cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        cv2.putText(frame_for_display, f"#{face_index}", (x1, y1-10), 
-                                  cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                        # Remove text per face to reduce clutter or keep small
+                        # cv2.putText(frame_for_display, f"#{face_index}", (x1, y1-10), ...
                         
                         # --- GROUPING: Her yüzü SADECE gruplandırarak kaydet ---
                         if frame_count % frame_skip_group == 0:
-                            # ALIGNED CROP: Sadece kayıt anında yap (performans için)
+                            # ALIGNED CROP
                             if hasattr(face_data, 'kps') and face_data.kps is not None:
                                 face_img = face_align.norm_crop(frame, landmark=face_data.kps, image_size=112)
                             else:
@@ -129,10 +140,10 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
                                 })
                                 print(f"    → Yeni grup oluşturuldu: celebrity_{idx:03d}")
                             
-                            # EMA: Embedding'i güncelle (adaptif tanıma)
+                            # EMA
                             celebrities[idx]["rep"] = 0.9 * celebrities[idx]["rep"] + 0.1 * emb
                             
-                            # Crop'u gruplandırılmış klasöre kaydet
+                            # Kaydet
                             count = celebrities[idx]["count"]
                             save_path = os.path.join(celebrities[idx]["path"], f"img_{count:04d}.jpg")
                             cv2.imwrite(save_path, face_img)
@@ -140,6 +151,8 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
             
             # --- İlerleme göstergesi ---
             progress = (frame_count / total_frames) * 100
+            # Ensure 100% is displayed at end
+            
             faces_str = f"Faces: {face_index}"
             groups_str = f" | Groups: {len(celebrities)}" if group_faces and celebrities else ""
             progress_text = f"Progress: {progress:.1f}% | {faces_str}{groups_str}"
@@ -159,22 +172,28 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
         
         cap.release()
         
-        # Özet
-        if celebrities:
-            total_saved = sum(c["count"] for c in celebrities)
-            print(f"\n✓ '{movie_title}' tamamlandı:")
-            print(f"  • {face_index} yüz tespit edildi")
-            print(f"  • {len(celebrities)} grup oluşturuldu")
-            print(f"  • {total_saved} yüz grouped_faces/ klasörüne kaydedildi")
-        else:
-            print(f"\n✓ '{movie_title}' tamamlandı: {face_index} yüz tespit edildi")
+        # Set COMPLETED status explicitly here before potentially exiting
+        print(f"Video loop finished for {movie_title}")
         
     except Exception as e:
         print(f"\n✗ Hata: {movie_title} işlenirken: {e}")
         import traceback
         traceback.print_exc()
+        cache.set(cache_key, "error", timeout=3600)
         yield (b'--frame\r\n'
             b'Content-Type: image/jpeg\r\n\r\n' + b'' + b'\r\n')
+            
+    finally:
+        # Guarantee status update
+        # Check if we didn't error out already
+        current_status = cache.get(cache_key)
+        if current_status != "error":
+             print(f"Setting COMPLETED status for {movie_title} (Key: {cache_key})")
+             cache.set(cache_key, "completed", timeout=3600)
+             
+        # Cleanup if needed
+        if 'cap' in locals() and cap.isOpened():
+            cap.release()
 
         
 

@@ -19,7 +19,18 @@ env/Script/activate
 # Install required packages
 pip install -r requirements.txt
 
+````
+
+### 2. Static Package Installation
+```bash
 # Install static packages
 python manage.py download_assets
-````
--
+```
+
+### 3. Database Operations
+```bash
+# Create database
+python manage.py migrate
+
+python load_data.py
+```

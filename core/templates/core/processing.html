@@ -72,9 +72,28 @@ function processingMonitor() {
         },
 
         async checkStatusLoop() {
-            // Periodic check logic could go here if we had a status API. 
-            // For now, relies on Image Error or Stream Close.
-            // But we can add a 'safety' timeout if image doesn't load
+            const movieSafe = "{{ movie_title|escapejs }}"; // Use TITLE (no extension) to match cache key in processor
+            // Note: In face_processor key is: f"processing_status_{get_safe_filename(movie_title)}"
+            // Since filename is already safe, movie_title here is likely safe, but we match logic.
+            
+            while (!this.completed) {
+                try {
+                    const res = await fetch(`{% url 'core:api_processing_status' %}?movie=${movieSafe}`);
+                    const data = await res.json();
+                    
+                    if (data.status === 'completed') {
+                        this.finish();
+                    } else if (data.status === 'error') {
+                        alert('İşlem sırasında bir hata oluştu!');
+                        this.completed = true; // Stop polling
+                    }
+                } catch (e) {
+                    console.error("Status check failed", e);
+                }
+                
+                // Wait 2 seconds
+                await new Promise(r => setTimeout(r, 2000));
+            }
         },
 
         finish() {

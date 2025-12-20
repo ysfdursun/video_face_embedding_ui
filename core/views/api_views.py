@@ -102,6 +102,37 @@ class CastManageAPI(View):
 
 class ActorSearchAPI(View):
     def get(self, request):
-        query = request.GET.get('q', '')
-        actors = Actor.objects.filter(name__icontains=query).values('name')[:20]
-        return JsonResponse({'results': list(actors)})
+        query = request.GET.get('q', '').strip()
+        if not query:
+            return JsonResponse({'results': []})
+        
+        actors = Actor.objects.filter(name__icontains=query)[:20]
+        return JsonResponse({
+            'results': [actor.name for actor in actors]
+        })
+
+@method_decorator(csrf_exempt, name='dispatch')
+class ProcessingStatusAPI(View):
+    def get(self, request):
+        movie_name = request.GET.get('movie')
+        if not movie_name:
+            return JsonResponse({'status': 'unknown', 'message': 'Movie name missing'})
+            
+        from django.core.cache import cache
+        # movie_name from GET is "Fight_Club" (safe from template)
+        # We need to construct the key exactly like in face_processor
+        # In processor: f"processing_status_{get_safe_filename(movie_title)}"
+        # Here we assume movie_name is already safe because it comes from frontend {{ movie_title }} 
+        # which comes from os.path.splitext... 
+        # But let's apply get_safe_filename just to be 100% sure we match the backend logic
+        from core.utils.file_utils import get_safe_filename
+        safe_name = get_safe_filename(movie_name)
+        
+        cache_key = f"processing_status_{safe_name}" 
+        status = cache.get(cache_key)
+        
+        # DEBUG LOG
+        if status != 'running': # Don't spam logs if validly running
+             print(f"[StatusAPI] Checking for '{movie_name}' -> Key: '{cache_key}' -> Status: {status}")
+        
+        return JsonResponse({'status': status or 'unknown'})

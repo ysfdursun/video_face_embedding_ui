@@ -123,43 +123,47 @@
                 <!-- Action Area -->
                 <div class="p-4" x-data="{ localSearch: '', showResults: false }">
                     <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Bu kim?</label>
-                    <div class="relative">
-                        <input type="text" 
-                               x-model="localSearch"
-                               @focus="showResults = true"
-                               @click.away="showResults = false"
-                               placeholder="Aktör adı..." 
-                               class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
-                        
-                        <!-- Quick Save Button (Visible when typing) -->
-                        <button x-show="localSearch.length > 0" 
-                                @click="saveGroup('{{ group.id }}', localSearch)"
-                                class="absolute right-1 top-1Bottom-1 bottom-1 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-bold transition-colors flex items-center">
-                            KAYDET
-                        </button>
+                    <div class="flex gap-2 mb-2">
+                        <div class="relative flex-1">
+                            <input type="text" 
+                                   x-model="localSearch"
+                                   @focus="showResults = true"
+                                   @click.away="showResults = false"
+                                   @keydown.enter="saveGroup('{{ group.id }}', localSearch)"
+                                   placeholder="Aktör adı..." 
+                                   class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all">
+                            
+                           <!-- Autocomplete Dropdown -->
+                           <div x-show="showResults && filterActors(localSearch).length > 0" 
+                                class="absolute bottom-full left-0 right-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto z-20"
+                                style="display: none;">
+                               <!-- Section Header: Cast -->
+                               <div class="px-2 py-1 bg-slate-100 text-xs font-semibold text-slate-500 sticky top-0">Önerilenler</div>
+                               
+                               <template x-for="actor in filterActors(localSearch)" :key="actor">
+                                   <button @click="localSearch = actor; showResults = false" 
+                                           class="w-full text-left px-4 py-2 hover:bg-indigo-50 text-sm text-slate-700 border-b border-slate-50 last:border-0 flex items-center justify-between">
+                                       <span x-text="actor"></span>
+                                       <i class="bi bi-arrow-down-left text-slate-400 text-xs" title="Seç"></i>
+                                   </button>
+                               </template>
+                           </div>
+                        </div>
 
-                       <!-- Autocomplete Dropdown -->
-                       <div x-show="showResults" 
-                            class="absolute bottom-full left-0 right-0 mb-1 bg-white border border-slate-200 rounded-lg shadow-xl max-h-48 overflow-y-auto z-20"
-                            style="display: none;">
-                           <template x-for="actor in filterActors(localSearch)" :key="actor">
-                               <button @click="saveGroup('{{ group.id }}', actor)" 
-                                       class="w-full text-left px-4 py-2 hover:bg-indigo-50 text-sm text-slate-700 border-b border-slate-50 last:border-0">
-                                   <span x-text="actor"></span>
-                               </button>
-                           </template>
-                           <!-- Option to search global DB if not found -->
-                            <div x-show="filterActors(localSearch).length === 0 && localSearch.length > 0" class="p-2 text-center text-xs text-slate-500">
-                                <span>Cast içinde bulunamadı.</span>
-                            </div>
-                       </div>
+                        <!-- Manual Label Button (Confirmation) -->
+                        <button @click="saveGroup('{{ group.id }}', localSearch)"
+                                :disabled="!localSearch"
+                                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-bold transition-colors shadow-sm">
+                            <i class="bi bi-check-lg"></i>
+                        </button>
                     </div>
                     
                     <!-- Quick Suggestions (Cast Members) -->
-                    <div class="mt-3 flex flex-wrap gap-2">
-                        {% for member in cast_list|slice:":5" %}
-                        <button @click="saveGroup('{{ group.id }}', '{{ member }}')" 
-                                class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded text-xs font-medium transition-colors truncate max-w-[100px]">
+                    <div class="mt-2 flex flex-wrap gap-2">
+                        {% for member in cast_list|slice:":4" %}
+                        <button @click="localSearch = '{{ member }}'" 
+                                class="px-2 py-1 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 border border-transparent hover:border-indigo-100 text-slate-600 rounded text-xs font-medium transition-all truncate max-w-[100px]"
+                                title="{{ member }}">
                             {{ member }}
                         </button>
                         {% endfor %}
@@ -188,16 +192,28 @@
 function labelingWorkstation() {
     return {
         selectedGroups: [],
-        // Use ONLY cast list by default as requested
         castMembers: [
             {% for member in cast_list %}"{{ member|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}
+        ],
+        allActors: [
+            {% for actor in all_actors %}"{{ actor|escapejs }}"{% if not forloop.last %},{% endif %}{% endfor %}
         ],
         movieTitle: "{{ movie_title|escapejs }}",
 
         filterActors(query) {
-            // Filter the CAST list
+            // Priority: Cast, then All
             if (!query) return this.castMembers;
-            return this.castMembers.filter(a => a.toLowerCase().includes(query.toLowerCase()));
+            
+            const q = query.toLowerCase();
+            const matchingCast = this.castMembers.filter(a => a.toLowerCase().includes(q));
+            
+            // If cast has matches, stick to cast (less noise)
+            // But user asked to search ALL.
+            // Let's combine them but deduplicate.
+            const matchingAll = this.allActors.filter(a => a.toLowerCase().includes(q) && !this.castMembers.includes(a));
+            
+            // Limit results to avoid lag
+            return [...matchingCast, ...matchingAll].slice(0, 10);
         },
 
         discardGroup(groupId) {
@@ -205,7 +221,10 @@ function labelingWorkstation() {
         },
 
         saveGroup(groupId, actorName) {
-            if (!actorName) return;
+            if (!actorName) {
+                alert("Lütfen bir isim girin veya seçin.");
+                return;
+            }
             this.sendAction('save', groupId, actorName);
         },
         

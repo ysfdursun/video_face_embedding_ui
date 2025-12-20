@@ -22,6 +22,7 @@ urlpatterns = [
     path('api/movie/create/', views.MovieCreateAPI.as_view(), name='api_create_movie'),
     path('api/actor/create/', views.ActorCreateAPI.as_view(), name='api_create_actor'),
     path('api/actor/delete/', views.ActorDeleteAPI.as_view(), name='api_delete_actor'),
-    path('api/cast/manage/', views.CastManageAPI.as_view(), name='api_manage_cast'),
-    path('api/actors/search/', views.ActorSearchAPI.as_view(), name='api_search_actors'),
+    path('api/cast/manage/', views.CastManageAPI.as_view(), name='api_cast_manage'),
+    path('api/actors/search/', views.ActorSearchAPI.as_view(), name='api_actor_search'),
+    path('api/processing-status/', views.ProcessingStatusAPI.as_view(), name='api_processing_status'),
 ]

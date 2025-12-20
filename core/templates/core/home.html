@@ -307,7 +307,7 @@ function uploadForm() {
 
         loadCast() {
             if (!this.selectedMovieTitle) return;
-            fetch(`{% url "core:api_manage_cast" %}?movie=${encodeURIComponent(this.selectedMovieTitle)}`)
+            fetch(`{% url "core:api_cast_manage" %}?movie=${encodeURIComponent(this.selectedMovieTitle)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
@@ -317,7 +317,7 @@ function uploadForm() {
         },
 
         addActorToCast(actorName) {
-            fetch('{% url "core:api_manage_cast" %}', {
+            fetch('{% url "core:api_cast_manage" %}', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({movie: this.selectedMovieTitle, actor: actorName})
