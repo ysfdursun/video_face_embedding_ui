@@ -18,6 +18,23 @@ def save_uploaded_video(video_file, movie_title):
     
     return final_filename
 
+def create_movie(title):
+    """
+    Creates a new movie in the database.
+    """
+    from core.models import Movie
+    from core.utils.file_utils import get_safe_filename
+    
+    # Check if exists
+    if Movie.objects.filter(title=title).exists():
+        return None, "Movie already exists"
+    
+    try:
+        movie = Movie.objects.create(title=title)
+        return movie, None
+    except Exception as e:
+        return None, str(e)
+
 def get_uploaded_videos():
     """Returns a list of uploaded video filenames."""
     video_dir = os.path.join(settings.MEDIA_ROOT, 'videos')

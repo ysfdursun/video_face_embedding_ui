@@ -91,3 +91,50 @@ def get_actor_details(actor_name):
         'movie_count': len(movies_set),
         'movies': sorted(list(movies_set)),
     }
+
+def create_actor(name):
+    """
+    Creates a new actor in the database and filesystem.
+    """
+    from core.models import Actor
+    from core.utils.file_utils import get_safe_filename
+    
+    safe_name = get_safe_filename(name)
+    if not safe_name:
+        return None, "Invalid name"
+        
+    labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces', safe_name)
+    
+    if Actor.objects.filter(name=safe_name).exists() or os.path.exists(labeled_dir):
+        return None, "Actor already exists"
+        
+    try:
+        Actor.objects.create(name=safe_name)
+        os.makedirs(labeled_dir, exist_ok=True)
+        # Invalidate cache
+        cache.delete_pattern("actors_list_*")
+        return safe_name, None
+    except Exception as e:
+        return None, str(e)
+
+def delete_actor(name):
+    """
+    Deletes an actor from the database and filesystem.
+    """
+    from core.models import Actor
+    import shutil
+    
+    try:
+        # DB Delete
+        Actor.objects.filter(name=name).delete()
+        
+        # Filesystem Delete
+        labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces', name)
+        if os.path.isdir(labeled_dir):
+            shutil.rmtree(labeled_dir)
+            
+        # Invalidate cache
+        cache.delete_pattern("actors_list_*")
+        return True, None
+    except Exception as e:
+        return False, str(e)

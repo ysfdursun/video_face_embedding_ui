@@ -8,6 +8,7 @@
     {% load static %}
     <!-- Local Vendor Assets -->
     <script src="{% static 'core/vendor/tailwindcss.js' %}"></script>
+    <script defer src="{% static 'core/vendor/alpine.min.js' %}"></script>
     <link rel="stylesheet" href="{% static 'core/vendor/flowbite.min.css' %}">
     
     <!-- Bootstrap Icons (Optional, keep if needed or replace with something else) -->
@@ -49,6 +50,11 @@
                     <li>
                         <a href="{% url 'core:actors_dashboard' %}" class="flex items-center gap-1 text-slate-700 hover:text-sky-600 transition-colors">
                             <i class="bi bi-people-fill"></i>Aktörler
+                        </a>
+                    </li>
+                    <li>
+                        <a href="{% url 'core:movies_dashboard' %}" class="flex items-center gap-1 text-slate-700 hover:text-sky-600 transition-colors">
+                            <i class="bi bi-collection-play-fill"></i>Filmler
                         </a>
                     </li>
                 </ul>

@@ -17,4 +17,11 @@ urlpatterns = [
     path('actors/', views.actors_dashboard, name='actors_dashboard'),
     path('actors/<str:actor_name>/', views.actor_detail, name='actor_detail'),
     path('api/upload-photo/', views.upload_photo, name='upload_photo'),
+    path('movies/', views.movies_dashboard, name='movies_dashboard'),
+    path('movies/<int:movie_id>/', views.movie_detail, name='movie_detail'),
+    path('api/movie/create/', views.MovieCreateAPI.as_view(), name='api_create_movie'),
+    path('api/actor/create/', views.ActorCreateAPI.as_view(), name='api_create_actor'),
+    path('api/actor/delete/', views.ActorDeleteAPI.as_view(), name='api_delete_actor'),
+    path('api/cast/manage/', views.CastManageAPI.as_view(), name='api_manage_cast'),
+    path('api/actors/search/', views.ActorSearchAPI.as_view(), name='api_search_actors'),
 ]

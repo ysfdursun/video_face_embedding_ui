@@ -3,26 +3,52 @@
 {% block title %}Film İşleniyor - {{ movie_title }}{% endblock %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto">
-    <div class="bg-white border-2 border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <div class="bg-slate-700 px-6 py-4 border-b border-slate-600">
-            <h4 class="text-lg font-bold text-white my-0">"{{ movie_title }}" filmi işleniyor...</h4>
+<div class="max-w-5xl mx-auto py-12">
+    <div class="bg-white border-2 border-indigo-100 rounded-2xl overflow-hidden shadow-lg">
+        <!-- Header -->
+        <div class="bg-slate-900 px-8 py-6 border-b border-slate-800 flex justify-between items-center">
+            <div>
+                 <h4 class="text-xl font-bold text-white mb-1">
+                    <i class="bi bi-cpu-fill text-indigo-400 mr-2"></i>
+                    Video İşleniyor
+                 </h4>
+                 <p class="text-slate-400 text-sm">"{{ movie_title }}" analiz ediliyor</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="relative flex h-3 w-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                </span>
+                <span class="text-emerald-400 text-sm font-medium">Canlı İşlem</span>
+            </div>
         </div>
-        <div class="p-6 text-center">
-            <div id="processing-indicator">
-                <p class="text-lg text-slate-600 mb-4">Lütfen bekleyin. Yüz tanıma işlemi devam ediyor ve aşağıda canlı olarak gösteriliyor.</p>
-                <div class="bg-black border border-slate-300 mb-4 rounded-lg overflow-hidden aspect-video relative flex items-center justify-center">
-                    <img id="video-stream" src="{% url 'core:stream_video_processing' movie_filename %}" alt="Video Stream" class="max-w-full max-h-full w-auto h-auto" onerror="streamFinished()">
+
+        <div class="p-8 text-center" x-data="processingMonitor()">
+            <!-- Processing State -->
+            <div x-show="!completed" class="space-y-6">
+                <img id="video-stream" 
+                     src="{% url 'core:stream_video_processing' movie_filename %}" 
+                     @error="handleStreamEnd()"
+                     class="w-full rounded-xl border-4 border-slate-100 shadow-inner bg-black aspect-video object-contain">
+                
+                <div class="max-w-xl mx-auto">
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 mb-2">
+                        <div class="bg-indigo-600 h-2.5 rounded-full animate-pulse" style="width: 100%"></div>
+                    </div>
+                    <p class="text-slate-500 text-sm">Yüzler algılanıyor ve gruplandırılıyor. Lütfen sayfayı kapatmayın.</p>
                 </div>
             </div>
 
-            <div id="completion-options" style="display: none;">
-                <h4 class="text-2xl font-bold text-emerald-600 mb-3">İşlem Tamamlandı!</h4>
-                <p class="text-lg text-slate-600 mb-4">"{{ movie_title }}" filmi için yüz tanıma işlemi bitti.</p>
-                <p class="text-slate-500 mb-6">Şimdi ne yapmak istersiniz?</p>
-                <div class="flex flex-col sm:flex-row justify-center gap-4 mt-4">
-                    <a href="{% url 'core:list_unlabeled_faces' %}" class="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors">Etiketlemeye Başla</a>
-                    <a href="{% url 'core:home' %}" class="px-6 py-3 bg-white text-slate-700 border-2 border-slate-300 hover:bg-slate-50 font-semibold rounded-lg transition-colors">Ana Sayfaya Dön</a>
+            <!-- Completed State (Auto Redirecting) -->
+            <div x-show="completed" style="display: none;" class="py-12">
+                <div class="mb-6">
+                    <i class="bi bi-check-circle-fill text-green-500 text-7xl animate-bounce"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-slate-900 mb-2">İşlem Tamamlandı!</h2>
+                <p class="text-lg text-slate-600 mb-8">Etiketleme sayfasına yönlendiriliyorsunuz...</p>
+                
+                <div class="flex justify-center">
+                   <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                 </div>
             </div>
         </div>
@@ -30,10 +56,37 @@
 </div>
 
 <script>
-function streamFinished() {
-    // Bu fonksiyon, video stream'i (sunucu bağlantıyı kapattığında) hata verdiğinde tetiklenir.
-    document.getElementById('processing-indicator').style.display = 'none';
-    document.getElementById('completion-options').style.display = 'block';
+function processingMonitor() {
+    return {
+        completed: false,
+        redirectTimer: null,
+
+        init() {
+            // Backup poller in case onerror fails (some browsers keep waiting forever)
+            this.checkStatusLoop();
+        },
+
+        handleStreamEnd() {
+            console.log("Stream ended via onerror");
+            this.finish();
+        },
+
+        async checkStatusLoop() {
+            // Periodic check logic could go here if we had a status API. 
+            // For now, relies on Image Error or Stream Close.
+            // But we can add a 'safety' timeout if image doesn't load
+        },
+
+        finish() {
+            if (this.completed) return;
+            this.completed = true;
+            
+            // Redirect after 2 seconds
+            setTimeout(() => {
+                window.location.href = "{% url 'core:label_all_faces' %}?movie={{ movie_title }}";
+            }, 2000);
+        }
+    }
 }
 </script>
 {% endblock %}

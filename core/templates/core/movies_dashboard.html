@@ -1,0 +1,116 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Filmler Arşivi{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+            <div>
+                <h1 class="text-4xl font-bold text-slate-900 mb-2">
+                    <i class="bi bi-collection-play-fill text-indigo-600 mr-3"></i>Filmler
+                </h1>
+                <p class="text-slate-600">Veritabanındaki tüm filmler ve oyuncu kadroları</p>
+            </div>
+            
+            <!-- Search -->
+            <form method="get" class="w-full md:w-auto">
+                <div class="relative">
+                    <input type="text" name="search" value="{{ search_query }}" 
+                           placeholder="Film ara..." 
+                           class="w-full md:w-80 px-4 py-2 pl-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <i class="bi bi-search absolute left-3 top-2.5 text-slate-400"></i>
+                </div>
+            </form>
+        </div>
+
+        <!-- Movie Grid -->
+        {% if movies_page %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+            {% for movie in movies_page %}
+            <a href="{% url 'core:movie_detail' movie.id %}" class="group block">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all overflow-hidden h-full flex flex-col">
+                    
+                    <!-- Poster / Face Pile Area -->
+                    <div class="aspect-video bg-slate-800 relative overflow-hidden group-hover:opacity-90 transition-opacity">
+                         {% if movie.preview_cast %}
+                            <div class="grid grid-cols-2 h-full">
+                                {% for person in movie.preview_cast %}
+                                    <img src="{{ MEDIA_URL }}{{ person.image }}" class="w-full h-full object-cover">
+                                {% endfor %}
+                                <!-- Fill with placeholder if less than 4 -->
+                                {% if movie.preview_cast|length < 4 %}
+                                    <div class="bg-slate-700 flex items-center justify-center w-full h-full opacity-50">
+                                        <i class="bi bi-film text-slate-500 text-2xl"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                         {% else %}
+                            <div class="w-full h-full flex items-center justify-center">
+                                <i class="bi bi-film text-slate-600 text-6xl"></i>
+                            </div>
+                         {% endif %}
+                         
+                         <!-- Title Overlay -->
+                         <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+                             <h3 class="text-white font-bold text-lg truncate">{{ movie.title }}</h3>
+                         </div>
+                    </div>
+
+                    <!-- Details -->
+                    <div class="p-4 flex-1 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center gap-2 text-sm text-slate-600 mb-2">
+                                <i class="bi bi-people-fill text-indigo-500"></i>
+                                <span>{{ movie.actor_count }} Oyuncu</span>
+                            </div>
+                        </div>
+                        <span class="text-sm font-semibold text-indigo-600 mt-2 block group-hover:underline">
+                            Detayları Gör <i class="bi bi-arrow-right"></i>
+                        </span>
+                    </div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if movies_page.has_other_pages %}
+        <nav class="flex justify-center mt-8">
+            <ul class="flex gap-2">
+                 {% if movies_page.has_previous %}
+                 <li>
+                    <a href="?page={{ movies_page.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-2 bg-white border border-slate-300 rounded hover:bg-slate-50">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                 </li>
+                 {% endif %}
+                 
+                 <li class="px-3 py-2 bg-indigo-600 text-white rounded">
+                    {{ movies_page.number }} / {{ movies_page.paginator.num_pages }}
+                 </li>
+
+                 {% if movies_page.has_next %}
+                 <li>
+                    <a href="?page={{ movies_page.next_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}" class="px-3 py-2 bg-white border border-slate-300 rounded hover:bg-slate-50">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                 </li>
+                 {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-20 bg-white rounded-xl border-2 border-dashed border-slate-300">
+            <i class="bi bi-film text-slate-300 text-6xl mb-4 inline-block"></i>
+            <h3 class="text-xl font-bold text-slate-900">Film Bulunamadı</h3>
+            <p class="text-slate-500 mt-1">Görünüşe göre veritabanında henüz film yok veya aramanız eşleşmedi.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
