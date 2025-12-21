@@ -3,6 +3,7 @@ import os
 import sys
 import django
 import csv
+from django.db import transaction
 
 # Django ayarlarını yükle
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'face_embedding_project.settings')
@@ -15,145 +16,147 @@ def normalize_name(name):
     Adı normalize et: boşlukları kaldır, altçizgiyi boşlukla değiştir
     Örnek: "henry_fonda" -> "Henry Fonda"
     """
-    # replace . to ""
     name = name.replace('.', '')
-    # # Altçizgileri boşlukla değiştir
-    # name = name.replace('_', ' ')
-    # # Her kelimenin baş harfini büyüt
-    # name = ' '.join(word.capitalize() for word in name.split())
     return name.lower()
 
 
 def load_actors():
-    """actors.txt dosyasından aktörleri yükle"""
+    """actors.txt dosyasından aktörleri yükle (Bulk Insert)"""
     actors_path = os.path.join('core', 'actors.txt')
-    
     print(f"Aktörler yükleniyor: {actors_path}")
     
     with open(actors_path, 'r', encoding='utf-8') as f:
         # İlk satır başlık, atla
         next(f)
-        
-        loaded_count = 0
-        existing_count = 0
-        
+        file_actor_names = set()
         for line in f:
-            actor_name_raw = line.strip()
-            if not actor_name_raw:
-                continue
-            
-            actor_name = normalize_name(actor_name_raw)
-            
-            actor, created = Actor.objects.get_or_create(
-                name=actor_name,
-                defaults={'name': actor_name}
-            )
-            
-            if created:
-                loaded_count += 1
-            else:
-                existing_count += 1
+            raw_name = line.strip()
+            if raw_name:
+                file_actor_names.add(normalize_name(raw_name))
+
+    # Mevcut aktörleri çek
+    existing_actors = set(Actor.objects.filter(name__in=file_actor_names).values_list('name', flat=True))
+    
+    # Yeni eklenecekleri bul
+    new_names = file_actor_names - existing_actors
+    
+    # Bulk create
+    new_actors = [Actor(name=name) for name in new_names]
+    if new_actors:
+        Actor.objects.bulk_create(new_actors, batch_size=1000)
     
     total = Actor.objects.count()
-    print(f"✓ Aktörler yüklendi: {loaded_count} yeni eklendi, {existing_count} zaten mevcut")
+    print(f"✓ Aktörler yüklendi: {len(new_actors)} yeni eklendi, {len(existing_actors)} zaten mevcut")
     print(f"  Toplam aktör sayısı: {total}")
     return total
 
 
 def load_movies_and_cast():
-    """movie_actors_lists.csv dosyasından filmleri ve cast'i yükle"""
+    """movie_actors_lists.csv dosyasından filmleri ve cast'i yükle (Bulk Insert)"""
     csv_path = os.path.join('core', 'movie_actors_lists.csv')
-    
     print(f"\nFilmler ve cast yükleniyor: {csv_path}")
     
-    movies_created = 0
-    movies_existing = 0
-    cast_loaded = 0
-    cast_skipped = 0
+    # Tüm aktörleri hafızaya al (ID lookup için)
+    # Lowercase name -> Actor Object
+    all_actors_map = {actor.name.lower(): actor for actor in Actor.objects.all()}
+    print(f"Aktör veritabanında {len(all_actors_map)} aktör bulundu")
+
+    movies_to_create = []
+    cast_relations = []
     
-    all_actors = {actor.name.lower(): actor for actor in Actor.objects.all()}
-    
-    print(f"Aktör veritabanında {len(all_actors)} aktör bulundu")
-    
+    # Dosyayı oku ve veriyi hazırla
     with open(csv_path, 'r', encoding='utf-8') as f:
         csv_reader = csv.reader(f)
-        # İlk satır başlık, atla
-        header = next(csv_reader)
+        next(csv_reader) # Header
+        
+        # Geçici hafıza
+        file_movies = {} # title -> [actor_names]
         
         for row in csv_reader:
-            if len(row) < 3:
-                continue
+            if len(row) < 3: continue
             
-            movie_title = row[0].strip()
+            title = row[0].strip()
             actors_str = row[2].strip()
             
-            if not movie_title or not actors_str:
-                continue
+            if title and actors_str:
+                file_movies[title] = [name.strip() for name in actors_str.split(',')]
+
+    # 1. FİLMLERİ YÜKLE
+    # Mevcut filmleri bul
+    existing_titles = set(Movie.objects.filter(title__in=file_movies.keys()).values_list('title', flat=True))
+    new_titles = set(file_movies.keys()) - existing_titles
+    
+    print(f"İşlenecek {len(new_titles)} yeni film var.")
+
+    # Yeni filmleri oluştur
+    new_movie_objs = [Movie(title=title) for title in new_titles]
+    if new_movie_objs:
+        Movie.objects.bulk_create(new_movie_objs, batch_size=1000)
+        print(f"✓ {len(new_movie_objs)} film veritabanına kaydedildi.")
+    
+    # Şimdi tüm ilgili filmleri (eski + yeni) tekrar çekip ID'lerini alalım
+    current_movies_map = {m.title: m for m in Movie.objects.filter(title__in=file_movies.keys())}
+    
+    # 2. CAST İLİŞKİLERİNİ YÜKLE
+    # Mevcut ilişkileri çekip tekrar eklemeyelim (FilmID - ActorID pair'i)
+    # Bu biraz maliyetli olabilir, o yüzden sadece yeni eklediğimiz filmler için direkt ekleyip,
+    # eski filmler için kontrol yapabiliriz ya da bulk_create(ignore_conflicts=True) kullanabiliriz (Postgres'te çalışır).
+    # Basitlik ve performans için: Sadece veritabanındaki ID'leri kullanarak listeyi hazırlayalım.
+    
+    new_cast_objects = []
+    skipped_count = 0
+    
+    print("Cast ilişkileri hazırlanıyor...")
+    
+    for title, actor_names_list in file_movies.items():
+        movie_obj = current_movies_map.get(title)
+        if not movie_obj: continue 
+        
+        for actor_name_raw in actor_names_list:
+            norm_name = normalize_name(actor_name_raw)
+            actor_obj = all_actors_map.get(norm_name)
             
-            # Filmi oluştur veya al
-            movie, movie_created = Movie.objects.get_or_create(title=movie_title)
-            
-            if movie_created:
-                movies_created += 1
+            if actor_obj:
+                new_cast_objects.append(MovieCast(movie=movie_obj, actor=actor_obj))
             else:
-                movies_existing += 1
-            
-            # Cast üyelerini işle
-            actor_names = [name.strip() for name in actors_str.split(',')]
-            
-            for actor_name_raw in actor_names:
-                actor_name_normalized = normalize_name(actor_name_raw)
-                
-                # Aktörü bul
-                actor = None
-                
-                # Önce exact match dene
-                for db_actor_name, db_actor in all_actors.items():
-                    if db_actor_name == actor_name_normalized.lower():
-                        actor = db_actor
-                        break
-                
-                if actor:
-                    # MovieCast kaydını oluştur
-                    cast_member, created = MovieCast.objects.get_or_create(
-                        movie=movie,
-                        actor=actor
-                    )
-                    if created:
-                        cast_loaded += 1
-                else:
-                    cast_skipped += 1
-                    # Biraz bilgi ver
-                    if cast_skipped <= 20:  # İlk 20 eksik aktörü göster
-                        print(f"  ⚠ Aktör bulunamadı: '{actor_name_normalized}' (Film: {movie_title})")
+                skipped_count += 1
+                if skipped_count <= 5:
+                    print(f"  ⚠ Aktör bulunamadı: '{norm_name}' (Film: {title})")
+
+    # Mevcut cast'i kontrol etmek yerine direkt ignore_conflicts=True ile ekleyelim
+    # (Eğer unique constraint varsa). MovieCast modelinde unique constraint yoksa duplicate olabilir.
+    # Genelde MovieCast modelinde class Meta: unique_together = ('movie', 'actor') olur.
+    # Varsayalım ki var, ya da duplicate olmasın diye kontrol edelim.
+    # Ancak o kontrol yavaşlatır. NeonDB (Postgres) için ignore_conflicts=True çok hızlıdır.
+    
+    if new_cast_objects:
+        print(f"{len(new_cast_objects)} cast ilişkisi veritabanına yazılıyor...")
+        # ignore_conflicts=True -> SQLite ve Postgres'te (farklı parametrelerle) çalışır. 
+        # Django 4+ da ignore_conflicts=True parametresi var.
+        MovieCast.objects.bulk_create(new_cast_objects, batch_size=2000, ignore_conflicts=True)
     
     total_movies = Movie.objects.count()
     total_cast = MovieCast.objects.count()
     
-    print(f"✓ Filmler yüklendi: {movies_created} yeni eklendi, {movies_existing} zaten mevcut")
+    print(f"✓ İşlem tamamlandı.")
     print(f"  Toplam film sayısı: {total_movies}")
-    print(f"✓ Cast üyeleri yüklendi: {cast_loaded} eklendi, {cast_skipped} bulunamadı")
     print(f"  Toplam cast kaydı: {total_cast}")
-    
-    return total_movies, total_cast, cast_skipped
+    print(f"  Bulunamayan aktörler: {skipped_count}")
+
+    return total_movies, total_cast, skipped_count
 
 
 def main():
     print("=" * 60)
-    print("VERİ YÜKLEME İŞLEMİ BAŞLANIYOR")
+    print("VERİ YÜKLEME İŞLEMİ (BULK OPTIMIZED)")
     print("=" * 60)
     
-    # Mevcut veriyi temizle (opsiyonel)
-    print("\nMevcut veriler kontrol ediliyor...")
-    print(f"  Aktörler: {Actor.objects.count()}")
-    print(f"  Filmler: {Movie.objects.count()}")
-    print(f"  Cast Üyeleri: {MovieCast.objects.count()}")
-    
-    # Aktörleri yükle
-    actor_count = load_actors()
-    
-    # Filmleri ve cast'i yükle
-    movie_count, cast_count, skipped_count = load_movies_and_cast()
+    with transaction.atomic():
+        # Aktörleri yükle
+        actor_count = load_actors()
+        
+        # Filmleri ve cast'i yükle
+        movie_count, cast_count, skipped_count = load_movies_and_cast()
     
     print("\n" + "=" * 60)
     print("VERİ YÜKLEME İŞLEMİ TAMAMLANDI")
@@ -161,8 +164,6 @@ def main():
     print(f"Toplam Aktör: {actor_count}")
     print(f"Toplam Film: {movie_count}")
     print(f"Toplam Cast Üyesi: {cast_count}")
-    if skipped_count > 0:
-        print(f"⚠ Bulunamayan Cast Üyeleri: {skipped_count}")
     print("=" * 60)
 
 

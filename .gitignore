@@ -6,6 +6,9 @@ env/
 # ignore static 
 /static
 
+# ignore .env 
+.env
+
 # ignore django_cache folder
 django_cache/
 

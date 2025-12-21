@@ -9,7 +9,7 @@ def actors_dashboard(request):
     """
     ✅ OPTIMIZED DASHBOARD: Hızlı yükleme ile kalite analizi
     """
-    search_query = request.GET.get('search', '').strip()
+    search_query = request.GET.get('search', '').strip().lower().replace(' ', '_')
     page = request.GET.get('page', 1)
     
     # Service call

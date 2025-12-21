@@ -6,3 +6,6 @@ insightface
 onnxruntime
 Pillow>=9.0
 requests
+python-decouple
+dj-database-url
+psycopg2-binary
