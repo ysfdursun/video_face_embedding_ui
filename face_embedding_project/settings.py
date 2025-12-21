@@ -77,7 +77,8 @@ WSGI_APPLICATION = 'face_embedding_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DB_URL = config('DATABASE_URL', default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'))
+# DB_URL = config('DATABASE_URL', default='sqlite:///' + str(BASE_DIR / 'db.sqlite3'))
+DB_URL =  default='sqlite:///' + str(BASE_DIR / 'db.sqlite3')
 
 if 'sqlite' in DB_URL:
     DATABASES = {

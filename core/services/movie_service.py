@@ -78,13 +78,22 @@ def get_movie_details(movie_id):
 
 def _get_first_face_for_actor(actor_name):
     """
-    Helper to find the first jpg face for an actor.
-    Returns relative path or None.
+    Helper to find the best display image for an actor.
+    Priority 1: Selected_Profiles/{actor_name}/{filename}.jpg
+    Priority 2: labeled_faces/{actor_name}/{filename}.jpg
     """
-    # We can use cache here if needed, but file system check is fast enough for top 4
-    # Optimization: Maybe cache this path in the Actor model or separate cache key?
-    # For now, let's just check FS.
     
+    # Priority 1: Check Selected_Profiles
+    profile_dir = os.path.join(settings.MEDIA_ROOT, 'Selected_Profiles', actor_name)
+    if os.path.isdir(profile_dir):
+        try:
+             files = [f for f in os.listdir(profile_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+             if files:
+                 return f'Selected_Profiles/{actor_name}/{files[0]}'
+        except OSError:
+            pass
+
+    # Priority 2: Check labeled_faces
     actor_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces', actor_name)
     if os.path.isdir(actor_dir):
         # Just grab the first one

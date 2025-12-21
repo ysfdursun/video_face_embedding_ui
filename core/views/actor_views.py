@@ -52,7 +52,7 @@ def actor_detail(request, actor_name):
     return render(request, 'core/actor_detail.html', context)
 
 def upload_photo(request):
-    """Aktöre fotoğraf ekle (AJAX endpoint)"""
+    """Aktöre fotoğraf ekle (AJAX endpoint) for the gallery"""
     
     if request.method == 'POST' and request.FILES.get('photo'):
         actor_name = request.POST.get('actor_name')
@@ -71,4 +71,37 @@ def upload_photo(request):
         except Exception as e:
             return JsonResponse({'success': False, 'message': f'Yükleme hatası: {str(e)}'})
     
+    return JsonResponse({'success': False, 'message': 'Geçersiz istek'})
+
+def update_profile_photo(request):
+    """Update actor profile photo in Selected_Profiles"""
+    if request.method == 'POST' and request.FILES.get('photo'):
+        actor_name = request.POST.get('actor_name')
+        photo_file = request.FILES['photo']
+        
+        try:
+            filename = actor_service.save_profile_photo(actor_name, photo_file)
+            return JsonResponse({
+                'success': True,
+                'message': 'Profil fotoğrafı güncellendi',
+                'filename': filename,
+                'url': f"{settings.MEDIA_URL}Selected_Profiles/{actor_name}/{filename}"
+            })
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'Hata: {str(e)}'})
+    return JsonResponse({'success': False, 'message': 'Geçersiz istek'})
+
+def remove_profile_photo(request):
+    """Remove actor profile photo from Selected_Profiles"""
+    if request.method == 'POST':
+        actor_name = request.POST.get('actor_name')
+        
+        try:
+            success = actor_service.delete_profile_photo(actor_name)
+            if success:
+                return JsonResponse({'success': True, 'message': 'Profil fotoğrafı kaldırıldı'})
+            else:
+                return JsonResponse({'success': False, 'message': 'Fotoğraf bulunamadı'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'Hata: {str(e)}'})
     return JsonResponse({'success': False, 'message': 'Geçersiz istek'})

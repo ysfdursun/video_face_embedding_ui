@@ -124,24 +124,24 @@
                 </button>
 
                 <!-- Photo Preview -->
-                <div class="relative h-48 bg-slate-100 overflow-hidden">
-                    {% if actor.preview_photos %}
-                        <div class="grid grid-cols-2 gap-0 h-full">
-                            {% for photo in actor.preview_photos %}
-                                <img src="{{ MEDIA_URL }}labeled_faces/{{ actor.name }}/{{ photo }}" 
-                                     alt="{{ actor.display_name }}"
-                                     class="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                                     loading="lazy">
-                            {% endfor %}
-                        </div>
-                        <div class="absolute bottom-3 left-3 bg-slate-900 bg-opacity-70 text-white px-3 py-1 rounded-full text-xs font-semibold">
-                            +{{ actor.photo_count }}
-                        </div>
+                <div class="relative h-64 bg-slate-100 overflow-hidden group-hover:bg-slate-200 transition-colors">
+                    {% if actor.profile_photo_url %}
+                        <img src="{{ MEDIA_URL }}{{ actor.profile_photo_url }}?t={% now 'U' %}" 
+                             alt="{{ actor.display_name }}"
+                             class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                             loading="lazy">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                     {% else %}
-                        <div class="flex items-center justify-center h-full">
-                            <i class="bi bi-image text-slate-400 text-4xl"></i>
+                        <div class="flex flex-col items-center justify-center h-full text-slate-400">
+                            <i class="bi bi-person-fill text-6xl mb-2"></i>
+                            <span class="text-xs font-medium">Profil Fotosu Yok</span>
                         </div>
                     {% endif %}
+                    
+                    <!-- Count Badge -->
+                    <div class="absolute bottom-3 left-3 bg-black/70 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1">
+                        <i class="bi bi-camera-fill text-[10px]"></i> {{ actor.photo_count }}
+                    </div>
                 </div>
 
                 <!-- Info -->

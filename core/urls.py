@@ -25,4 +25,6 @@ urlpatterns = [
     path('api/cast/manage/', views.CastManageAPI.as_view(), name='api_cast_manage'),
     path('api/actors/search/', views.ActorSearchAPI.as_view(), name='api_actor_search'),
     path('api/processing-status/', views.ProcessingStatusAPI.as_view(), name='api_processing_status'),
+    path('api/profile/update/', views.update_profile_photo, name='update_profile_photo'),
+    path('api/profile/remove/', views.remove_profile_photo, name='remove_profile_photo'),
 ]

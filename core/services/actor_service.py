@@ -42,6 +42,16 @@ def get_actors_data(search_query=''):
                 # Optimize: Preview photos
                 preview_photos = sorted(photos)[:5]
                 
+                # Check for Profile Photo
+                profile_photo_url = None
+                profile_photo_dir = os.path.join(settings.MEDIA_ROOT, 'Selected_Profiles', actor_folder)
+                
+                if os.path.isdir(profile_photo_dir):
+                    # Get first image file in the directory
+                    profile_images = [f for f in os.listdir(profile_photo_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                    if profile_images:
+                        profile_photo_url = f"Selected_Profiles/{actor_folder}/{profile_images[0]}"
+
                 actors_data.append({
                     'name': actor_folder,
                     'display_name': actor_folder.replace('_', ' ').title(),
@@ -49,6 +59,7 @@ def get_actors_data(search_query=''):
                     'movie_count': len(movies_set),
                     'movies': sorted(list(movies_set)),
                     'preview_photos': preview_photos,
+                    'profile_photo_url': profile_photo_url,
                 })
         
         # Cache for 5 minutes
@@ -83,13 +94,25 @@ def get_actor_details(actor_name):
             'path': f'labeled_faces/{actor_name}/{photo}',
         })
     
+    movie_count = len(movies_set)
+
+    # Profile Photo Logic
+    profile_photo_dir = os.path.join(settings.MEDIA_ROOT, 'Selected_Profiles', actor_name)
+    profile_photo_url = None
+    
+    if os.path.isdir(profile_photo_dir):
+        profile_images = [f for f in os.listdir(profile_photo_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+        if profile_images:
+            profile_photo_url = f"Selected_Profiles/{actor_name}/{profile_images[0]}"
+
     return {
         'actor_name': actor_name,
         'display_name': actor_name.replace('_', ' ').title(),
         'photos': photo_data,
         'photo_count': len(photos),
-        'movie_count': len(movies_set),
+        'movie_count': movie_count,
         'movies': sorted(list(movies_set)),
+        'profile_photo_url': profile_photo_url,
     }
 
 def create_actor(name):
@@ -116,6 +139,44 @@ def create_actor(name):
         return safe_name, None
     except Exception as e:
         return None, str(e)
+
+def save_profile_photo(actor_name, photo_file):
+    """
+    Saves or updates the profile photo for an actor in Selected_Profiles.
+    Creates a folder for the actor if it doesn't exist.
+    """
+    profile_photo_dir = os.path.join(settings.MEDIA_ROOT, 'Selected_Profiles', actor_name)
+    
+    # Create directory if not exists
+    os.makedirs(profile_photo_dir, exist_ok=True)
+    
+    # Remove all existing files in the directory to ensure only one profile photo
+    for f in os.listdir(profile_photo_dir):
+        os.remove(os.path.join(profile_photo_dir, f))
+    
+    # Save new file
+    # Use actor_name + extension or original name
+    ext = os.path.splitext(photo_file.name)[1]
+    filename = f"{actor_name}{ext}" 
+    file_path = os.path.join(profile_photo_dir, filename)
+    
+    with open(file_path, 'wb+') as destination:
+        for chunk in photo_file.chunks():
+            destination.write(chunk)
+            
+    return filename
+
+def delete_profile_photo(actor_name):
+    """
+    Deletes the profile photo directory for an actor.
+    """
+    profile_photo_dir = os.path.join(settings.MEDIA_ROOT, 'Selected_Profiles', actor_name)
+    
+    if os.path.isdir(profile_photo_dir):
+        import shutil
+        shutil.rmtree(profile_photo_dir)
+        return True
+    return False
 
 def delete_actor(name):
     """
