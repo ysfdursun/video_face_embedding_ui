@@ -110,8 +110,48 @@ def label_all_faces(request):
     # GET - Pagination
     page = int(request.GET.get('page', 1))
     
+    
+    # Ensure sync before listing to make sure partial data isn't shown
+    # Note: This might be slightly slow for huge lists, but robust.
+    face_service.sync_face_groups(selected_movie)
+    
     # Fetch paginated data from service
+    # Now we need to update service to return risk info 
+    # Or fetch it here. Let's fetch it here for simplicity or update service.
+    # Service 'get_groups_for_movie' currently returns basic file list.
+    # Let's update it to return objects or enriching data.
+    
     result = face_service.get_groups_for_movie(selected_movie, page=page, per_page=20)
+    
+    # Enrich result['groups'] with DB data
+    from core.models import FaceGroup, Movie
+    
+    # Find movie obj
+    movie_obj = Movie.objects.filter(title=selected_movie).first()
+    # Fallback logic repeated.. ideally should be unified
+    if not movie_obj:
+         for m in Movie.objects.all():
+            if get_safe_filename(m.title) == selected_movie:
+                movie_obj = m
+                break
+    
+    if movie_obj:
+        # Get all FaceGroups for this movie
+        # Optimziation: Filter by group IDs in the current page results
+        page_group_ids = [g['id'] for g in result['groups']]
+        db_groups = FaceGroup.objects.filter(movie=movie_obj, group_id__in=page_group_ids)
+        db_map = {fg.group_id: fg for fg in db_groups}
+        
+        for g in result['groups']:
+            fg = db_map.get(g['id'])
+            if fg:
+                g['risk_level'] = fg.risk_level
+                g['avg_confidence'] = fg.avg_confidence
+                # g['face_count'] = fg.face_count # Filesystem is truth for count, but DB has it too
+            else:
+                g['risk_level'] = 'HIGH' # Default safe
+                g['avg_confidence'] = 0.0
+
     
     # Film cast listesi
     movie_cast_list = []
@@ -124,16 +164,8 @@ def label_all_faces(request):
         print(f"[ERROR] All actors fetch error: {e}")
 
     try:
-        movie = Movie.objects.filter(title=selected_movie).first()
-        if not movie:
-             # Fallback search
-             for m in Movie.objects.all():
-                if get_safe_filename(m.title) == selected_movie:
-                    movie = m
-                    break
-        
-        if movie:
-            cast_members = MovieCast.objects.filter(movie=movie).select_related('actor').order_by('actor__name')
+        if movie_obj:
+            cast_members = MovieCast.objects.filter(movie=movie_obj).select_related('actor').order_by('actor__name')
             movie_cast_list = [cast.actor.name for cast in cast_members]
             
     except Exception as e:

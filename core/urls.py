@@ -7,6 +7,7 @@ app_name = 'core'
 urlpatterns = [
     path('', views.welcome, name='welcome'),
     path('home/', views.home, name='home'),
+    path('settings/', views.settings_view, name='settings'),
     path('label/all/', views.label_all_faces, name='label_all_faces'),
     path('label/list/', views.list_unlabeled_faces, name='list_unlabeled_faces'),
     path('label/delete_single/', views.delete_single_face, name='delete_single_face'),

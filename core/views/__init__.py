@@ -6,3 +6,4 @@ from .actor_views import *
 from .assets_views import *
 from .api_views import *
 from .movie_views import *
+from .settings_views import *

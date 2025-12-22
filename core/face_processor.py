@@ -25,23 +25,43 @@ def get_execution_providers():
         return ['CPUExecutionProvider']
 
 
-def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, frame_skip_extract=10, frame_skip_group=5, sim_threshold=0.45, min_face_size=80):
+def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
     """
     OPTIMIZED PIPELINE: Videoyu BİR KERE okur, yüzleri SADECE gruplandırarak kaydeder
-    
-    ✓ VIDEO 1 KERE OKUNUR
-    ✓ FACE DETECTION 1 KERE YAPILIR
-    ✓ SADECE GROUPED_FACES KLASÖRÜNE KAYDEDER (unlabeled gereksiz)
+    Uses Global Settings from DB if available.
     """
     
     # Cache key setup
     from django.core.cache import cache
     from core.utils.file_utils import get_safe_filename
+    from core.models import FaceRecognitionSettings, Movie, FaceGroup
+    
+    # --- GET SETTINGS ---
+    try:
+        settings_obj = FaceRecognitionSettings.get_settings()
+        sim_threshold = settings_obj.grouping_threshold
+        min_face_size = settings_obj.min_face_size
+        frame_skip_extract = settings_obj.frame_skip_extract
+        frame_skip_group = settings_obj.frame_skip_group
+        gpu_enabled = settings_obj.gpu_enabled
+    except Exception as e:
+        print(f"Error loading settings, using defaults: {e}")
+        sim_threshold = 0.45
+        min_face_size = 80
+        frame_skip_extract = 10
+        frame_skip_group = 5
+        gpu_enabled = True
+
     safe_movie_title = get_safe_filename(movie_title)
     cache_key = f"processing_status_{safe_movie_title}"
     
     try:
-        print(f"'{movie_title}' için yüz tanıma başlıyor...")
+        print(f"'{movie_title}' için yüz tanıma başlıyor (Threshold: {sim_threshold}, GPU: {gpu_enabled})...")
+        
+        # Movie objesini al veya oluştur (FaceGroup için gerekli)
+        movie_obj = Movie.objects.filter(title=movie_title).first()
+        if not movie_obj:
+            movie_obj, _ = Movie.objects.get_or_create(title=movie_title)
         
         # Çıktı klasörünü oluştur - SADECE grouped_faces
         grouped_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces', movie_title)
@@ -52,6 +72,9 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
         
         # Provider'ı al (GPU/CPU)
         providers = get_execution_providers()
+        if not gpu_enabled:
+             providers = ['CPUExecutionProvider']
+
         app = FaceAnalysis(name='buffalo_l', providers=providers)
         app.prepare(ctx_id=0, det_size=(640, 640))
         
@@ -68,17 +91,18 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
         face_index = 0
         
         # Grouping state
-        celebrities = [] if group_faces else None  # [{"rep": embedding, "count": int, "path": dir}, ...]
+        celebrities = [] if group_faces else None  
         
         def assign_identity(emb):
             """Embedding'i mevcut gruplarla karşılaştır."""
             if not celebrities:
-                return None
+                return None, 0.0
             sims = [float(np.dot(emb, c["rep"])) for c in celebrities]
             best = int(np.argmax(sims))
-            if sims[best] > sim_threshold:
-                return best
-            return None
+            score = sims[best]
+            if score > sim_threshold:
+                return best, score
+            return None, score
         
         print(f"İşleme başlanıyor: Toplam {total_frames} kare\n")
         
@@ -108,13 +132,12 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
                         x2 = max(0, min(bbox[2], w))
                         y2 = max(0, min(bbox[3], h))
                         
-                        if x2 <= x1 or y2 <= y1:
+                        # Min Face Size Check
+                        if (x2 - x1) < min_face_size or (y2 - y1) < min_face_size:
                             continue
                         
                         # Display kareye dikdörtgen çiz
                         cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        # Remove text per face to reduce clutter or keep small
-                        # cv2.putText(frame_for_display, f"#{face_index}", (x1, y1-10), ...
                         
                         # --- GROUPING: Her yüzü SADECE gruplandırarak kaydet ---
                         if frame_count % frame_skip_group == 0:
@@ -127,7 +150,7 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
                             if face_img.size == 0:
                                 continue
                             emb = face_data.normed_embedding
-                            idx = assign_identity(emb)
+                            idx, match_score = assign_identity(emb)
                             
                             if idx is None:  # Yeni grup
                                 idx = len(celebrities)
@@ -136,9 +159,17 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
                                 celebrities.append({
                                     "rep": emb,
                                     "count": 0,
-                                    "path": celeb_dir
+                                    "path": celeb_dir,
+                                    "total_sim": 0.0,
+                                    "sim_count": 0,
+                                    "group_id": f"celebrity_{idx:03d}"
                                 })
                                 print(f"    → Yeni grup oluşturuldu: celebrity_{idx:03d}")
+                            
+                            # Update stats
+                            if match_score > 0:
+                                celebrities[idx]["total_sim"] += match_score
+                                celebrities[idx]["sim_count"] += 1
                             
                             # EMA
                             celebrities[idx]["rep"] = 0.9 * celebrities[idx]["rep"] + 0.1 * emb
@@ -172,6 +203,29 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, 
         
         cap.release()
         
+        # --- POST-PROCESSING: SAVE GROUP STATS TO DB ---
+        if celebrities:
+             print("Saving group stats to database...")
+             for c in celebrities:
+                try:
+                    # Calculate stats
+                    avg_conf = 0.0
+                    if c["sim_count"] > 0:
+                        avg_conf = c["total_sim"] / c["sim_count"]
+                    else:
+                        avg_conf = 1.0 # Single face
+                    
+                    # Update or Create FaceGroup
+                    fg, created = FaceGroup.objects.get_or_create(
+                        movie=movie_obj,
+                        group_id=c["group_id"]
+                    )
+                    fg.face_count = c["count"]
+                    fg.avg_confidence = avg_conf
+                    fg.update_risk_level()
+                except Exception as e:
+                    print(f"Error saving FaceGroup stats for {c['group_id']}: {e}")
+
         # Set COMPLETED status explicitly here before potentially exiting
         print(f"Video loop finished for {movie_title}")
         

@@ -163,8 +163,74 @@ def save_actor_photo(actor_name, photo_file):
     filename = f"{int(time.time() * 1000)}{ext}"
     file_path = os.path.join(actor_dir, filename)
     
+
     with open(file_path, 'wb+') as destination:
         for chunk in photo_file.chunks():
             destination.write(chunk)
             
     return filename
+
+def sync_face_groups(movie_name):
+    """
+    Scans the filesystem for a movie's groups and ensures FaceGroup entries exist.
+    OPTIMIZED: Incremental sync. Only reads distinct folders not in DB.
+    """
+    from core.models import Movie, FaceGroup
+    
+    movie_path = os.path.join(get_grouped_faces_dir(), movie_name)
+    if not os.path.exists(movie_path):
+        return
+        
+    try:
+        movie_obj = Movie.objects.filter(title=movie_name).first()
+        if not movie_obj:
+            # Try looser match
+            for m in Movie.objects.all():
+                if get_safe_filename(m.title) == movie_name:
+                    movie_obj = m
+                    break
+            if not movie_obj:
+                movie_obj = Movie.objects.create(title=movie_name)
+    except Exception as e:
+        print(f"Sync Init Error: {e}")
+        return
+
+    # Scan folders
+    try:
+        # FS Source of True
+        fs_group_ids = set([d for d in os.listdir(movie_path) if d.startswith('celebrity_') and os.path.isdir(os.path.join(movie_path, d))])
+        
+        # DB State
+        db_groups = FaceGroup.objects.filter(movie=movie_obj)
+        db_group_ids = set(db_groups.values_list('group_id', flat=True))
+        
+        # 1. Identify New Groups (FS - DB)
+        new_group_ids = fs_group_ids - db_group_ids
+        
+        if new_group_ids:
+            # print(f"Syncing {len(new_group_ids)} new groups for {movie_name}...")
+            new_objs = []
+            for group_id in new_group_ids:
+                group_full_path = os.path.join(movie_path, group_id)
+                # Count faces only for new groups
+                face_count = len([f for f in os.listdir(group_full_path) if f.endswith('.jpg')])
+                
+                new_objs.append(FaceGroup(
+                    movie=movie_obj,
+                    group_id=group_id,
+                    face_count=face_count,
+                    risk_level='HIGH' # Default safe
+                ))
+            
+            if new_objs:
+                FaceGroup.objects.bulk_create(new_objs)
+
+        # 2. Identify Deleted Groups (DB - FS) -> Cleanup DB
+        deleted_group_ids = db_group_ids - fs_group_ids
+        if deleted_group_ids:
+            # print(f"Removing {len(deleted_group_ids)} stale groups from DB...")
+            FaceGroup.objects.filter(movie=movie_obj, group_id__in=deleted_group_ids).delete()
+            
+    except Exception as e:
+        print(f"Sync Loop Error: {e}")
+

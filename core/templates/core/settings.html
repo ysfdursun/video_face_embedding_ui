@@ -1,0 +1,99 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Yüz Tanıma Ayarları{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto p-6">
+    <div class="flex items-center gap-4 mb-8">
+        <a href="{% url 'core:label_all_faces' %}" class="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <h1 class="text-3xl font-bold text-slate-900">Yüz Tanıma Ayarları</h1>
+    </div>
+
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700 border border-green-200{% else %}bg-red-100 text-red-700 border border-red-200{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="p-6 border-b border-slate-100 bg-slate-50">
+            <h2 class="text-lg font-semibold text-slate-800">Global Yapılandırma</h2>
+            <p class="text-sm text-slate-500">Bu ayarlar tüm yeni video işleme süreçlerini etkileyecektir.</p>
+        </div>
+        
+        <form method="post" class="p-6 space-y-6">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Group 1: Detection -->
+                <div class="space-y-4">
+                    <h3 class="font-medium text-slate-900 border-b pb-2">Tespit & Hassasiyet</h3>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Tespit Eşiği (Detection Threshold)</label>
+                        <input type="number" step="0.01" min="0.1" max="1.0" name="detection_threshold" value="{{ settings.detection_threshold }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <p class="text-xs text-slate-500 mt-1">Yüz tespiti için minimum güven skoru (Önerilen: 0.50)</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Gruplandırma Eşiği (Similarity Threshold)</label>
+                        <input type="number" step="0.01" min="0.1" max="1.0" name="grouping_threshold" value="{{ settings.grouping_threshold }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <p class="text-xs text-slate-500 mt-1">Yüzleri aynı kişiye atamak için benzerlik skoru (Önerilen: 0.45)</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Min. Yüz Boyutu (px)</label>
+                        <input type="number" min="20" max="500" name="min_face_size" value="{{ settings.min_face_size }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <p class="text-xs text-slate-500 mt-1">Bu boyuttan küçük yüzler işlenmez (Önerilen: 80)</p>
+                    </div>
+                </div>
+
+                <!-- Group 2: Performance -->
+                <div class="space-y-4">
+                    <h3 class="font-medium text-slate-900 border-b pb-2">Performans</h3>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Kare Atla (Extraction)</label>
+                        <input type="number" min="1" max="100" name="frame_skip_extract" value="{{ settings.frame_skip_extract }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <p class="text-xs text-slate-500 mt-1">Her N karede bir yüz tespiti yap (Hız için arttırın)</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Kare Atla (Grouping)</label>
+                        <input type="number" min="1" max="100" name="frame_skip_group" value="{{ settings.frame_skip_group }}"
+                               class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <p class="text-xs text-slate-500 mt-1">Her N tespit edilen yüzden birini gruplandır (Hız için arttırın)</p>
+                    </div>
+
+                    <div class="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 mt-6">
+                        <div>
+                            <span class="font-medium text-slate-900">GPU Hızlandırma</span>
+                            <p class="text-xs text-slate-500">Mümkünse CUDA kullan</p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" name="gpu_enabled" class="sr-only peer" {% if settings.gpu_enabled %}checked{% endif %}>
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-indigo-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-6 border-t border-slate-100 flex justify-end">
+                <button type="submit" class="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-semibold shadow-lg shadow-indigo-200 transition-all">
+                    Ayarları Kaydet
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
