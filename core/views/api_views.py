@@ -183,4 +183,20 @@ class ProcessingStatusAPI(View):
         if status != 'running': # Don't spam logs if validly running
              print(f"[StatusAPI] Checking for '{movie_name}' -> Key: '{cache_key}' -> Status: {status}")
         
+        # FALLBACK: If status is unknown (e.g. server restart cleared cache), 
+        # but the movie has groups in DB, assume it might be completed.
+        if not status:
+            from core.models import FaceGroup, Movie
+            # Find movie
+            movie = Movie.objects.filter(title=movie_name).first() # Try exact
+            if not movie:
+                 # Try safe name match logic if needed, but usually title is preserved
+                 pass
+            
+            if movie:
+                count = FaceGroup.objects.filter(movie=movie).count()
+                if count > 0:
+                     # We have groups, likely finished or at least has data
+                     status = 'completed'
+
         return JsonResponse({'status': status or 'unknown'})

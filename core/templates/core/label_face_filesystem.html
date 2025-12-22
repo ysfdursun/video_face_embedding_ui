@@ -18,18 +18,42 @@
         {% if movies %}
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {% for movie in movies %}
-            <a href="?movie={{ movie.name }}" class="bg-white p-6 rounded-xl shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 border border-slate-200 group">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                        <i class="bi bi-play-circle-fill text-2xl"></i>
+            <div class="relative bg-white rounded-xl shadow-sm hover:shadow-xl transition-all hover:-translate-y-1 border border-slate-200 group" x-data="{ menuOpen: false }">
+                <a href="?movie={{ movie.name }}" class="block p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                            <i class="bi bi-play-circle-fill text-2xl"></i>
+                        </div>
+                        <span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-semibold">
+                            {{ movie.group_count }} Gruplandırılmış Yüz
+                        </span>
                     </div>
-                    <span class="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-semibold">
-                        {{ movie.group_count }} Gruplandırılmış Yüz
-                    </span>
+                    <h3 class="text-xl font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{{ movie.name }}</h3>
+                    <p class="text-sm text-slate-500">İşlemeye başlamak için tıklayın</p>
+                </a>
+                
+                <!-- MOVIE CONTEXT MENU -->
+                <div class="absolute top-4 right-4 z-20">
+                    <button @click.prevent="menuOpen = !menuOpen" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors">
+                        <i class="bi bi-three-dots"></i>
+                    </button>
+                    
+                    <div x-show="menuOpen" @click.away="menuOpen = false" 
+                         style="display: none;"
+                         class="absolute right-0 mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                        
+                        <a href="{% url 'core:processing_page' movie.name %}" 
+                           class="block px-4 py-3 text-sm text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors flex items-center gap-2">
+                            <i class="bi bi-arrow-repeat"></i> Yeniden İşle
+                        </a>
+                        
+                        <button @click.prevent="deleteMovie('{{ movie.name }}')" 
+                                class="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2 border-t border-slate-100">
+                            <i class="bi bi-trash3"></i> Bu Filmi Sil
+                        </button>
+                    </div>
                 </div>
-                <h3 class="text-xl font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{{ movie.name }}</h3>
-                <p class="text-sm text-slate-500">İşlemeye başlamak için tıklayın</p>
-            </a>
+            </div>
             {% endfor %}
         </div>
         {% else %}
@@ -49,9 +73,6 @@
             <div class="flex items-center gap-4">
                 <a href="{% url 'core:label_all_faces' %}" class="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors">
                     <i class="bi bi-arrow-left"></i>
-                </a>
-                <a href="{% url 'core:settings' %}" class="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors" title="Ayarlar">
-                    <i class="bi bi-gear-fill"></i>
                 </a>
                 <div>
                     <h1 class="text-xl font-bold text-slate-900">{{ movie_title }}</h1>
@@ -198,6 +219,7 @@
                     </div>
                     
                     <div class="absolute bottom-2 right-2 flex gap-2">
+                        {% if group.avg_confidence > 0 %}
                         <!-- Risk Badge -->
                         <div class="text-xs px-2 py-1 rounded-md backdrop-blur-sm font-semibold border
                             {% if group.risk_level == 'HIGH' %} bg-red-500/80 text-white border-red-400
@@ -206,6 +228,13 @@
                             {% if group.risk_level == 'HIGH' %}Dikkat{% elif group.risk_level == 'MEDIUM' %}Orta{% else %}Güvenli{% endif %}
                             <span class="text-[10px] opacity-80">({{ group.avg_confidence|floatformat:2 }})</span>
                         </div>
+                        {% else %}
+                        <!-- No Data Badge (Sync only) -->
+                         <div class="text-xs px-2 py-1 rounded-md backdrop-blur-sm font-semibold border bg-slate-500/80 text-white border-slate-400">
+                             N/A
+                             <span class="text-[10px] opacity-80">(Veri Yok)</span>
+                         </div>
+                        {% endif %}
 
                         <div class="bg-black/70 text-white text-xs px-2 py-1 rounded-md backdrop-blur-sm">
                             {{ group.faces|length }} Kare
@@ -456,6 +485,28 @@ function labelingWorkstation() {
                     }
                 }
             });
+        },
+
+        deleteMovie(movieName) {
+            if (!confirm(movieName + " filminin gruplandırılmış yüz verilerini silmek istediğinize emin misiniz? Bu işlem filmi silmez, sadece bu sayfadaki grupları temizler.")) return;
+
+            fetch('{% url "core:delete_movie" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ movie_name: movieName })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Hata: ' + data.error);
+                }
+            })
+            .catch(err => console.error(err));
         }
     }
 }

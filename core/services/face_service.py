@@ -23,6 +23,25 @@ def count_pending_groups():
                 pending_groups_count += len([f for f in os.listdir(movie_path) if f.startswith('celebrity_') and os.path.isdir(os.path.join(movie_path, f))])
     return pending_groups_count
 
+def count_pending_faces():
+    """
+    Counts total individual face images waiting to be labeled in grouped_faces.
+    """
+    grouped_faces_dir = get_grouped_faces_dir()
+    pending_faces_count = 0
+    if os.path.exists(grouped_faces_dir):
+        for movie_folder in os.listdir(grouped_faces_dir):
+            movie_path = os.path.join(grouped_faces_dir, movie_folder)
+            if os.path.isdir(movie_path):
+                # Iterate groups
+                for group_folder in os.listdir(movie_path):
+                    if group_folder.startswith('celebrity_'):
+                        group_path = os.path.join(movie_path, group_folder)
+                        if os.path.isdir(group_path):
+                            # Count jpgs
+                            pending_faces_count += len([f for f in os.listdir(group_path) if f.endswith('.jpg')])
+    return pending_faces_count
+
 def list_unlabeled_faces_service():
     unlabeled_dir = get_unlabeled_faces_dir()
     os.makedirs(unlabeled_dir, exist_ok=True)

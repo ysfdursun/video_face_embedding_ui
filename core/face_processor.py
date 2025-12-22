@@ -65,6 +65,18 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         
         # Çıktı klasörünü oluştur - SADECE grouped_faces
         grouped_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces', movie_title)
+        
+        # CLEANUP: Önceki verileri sil (Reprocess = Fresh Start)
+        if os.path.exists(grouped_dir):
+            import shutil
+            try:
+                print(f"🧹 Önceki veriler temizleniyor: {grouped_dir}")
+                shutil.rmtree(grouped_dir)
+                # DB Cleanup
+                FaceGroup.objects.filter(movie=movie_obj).delete()
+            except Exception as e:
+                print(f"⚠ Temizlik uyarısı: {e}")
+                
         os.makedirs(grouped_dir, exist_ok=True)
         
         # Status: RUNNING
@@ -94,14 +106,27 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         celebrities = [] if group_faces else None  
         
         def assign_identity(emb):
-            """Embedding'i mevcut gruplarla karşılaştır."""
+            """Embedding'i mevcut gruplarla karşılaştır (Adaptive Threshold)."""
             if not celebrities:
                 return None, 0.0
+            
             sims = [float(np.dot(emb, c["rep"])) for c in celebrities]
             best = int(np.argmax(sims))
             score = sims[best]
-            if score > sim_threshold:
+            
+            # --- ADAPTIVE THRESHOLD LOGIC ---
+            # Grup büyüdükçe eşik değerini artır (Daha seçici ol)
+            # Penalty: Her yüz için +0.001, Maksimum +0.10
+            # Örn: 50 yüzlük grup için -> 0.45 + 0.05 = 0.50 olur
+            current_count = celebrities[best]["sim_count"]
+            penalty = min(0.10, current_count * 0.001)
+            dynamic_threshold = sim_threshold + penalty
+            
+            if score > dynamic_threshold:
                 return best, score
+            
+            # Eğer skor, dinamik eşiğin altındaysa ama base eşiğin üstündeyse
+            # Bunu opsiyonel olarak loglayabiliriz ama performans için sessiz geçiyoruz.
             return None, score
         
         print(f"İşleme başlanıyor: Toplam {total_frames} kare\n")
@@ -140,12 +165,14 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
                         cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 255, 0), 2)
                         
                         # --- GROUPING: Her yüzü SADECE gruplandırarak kaydet ---
-                        if frame_count % frame_skip_group == 0:
-                            # ALIGNED CROP
-                            if hasattr(face_data, 'kps') and face_data.kps is not None:
-                                face_img = face_align.norm_crop(frame, landmark=face_data.kps, image_size=112)
-                            else:
-                                face_img = frame[y1:y2, x1:x2]
+                        # Logic Fix: Ensure we don't skip if we already detected
+                        # (Remove the second modulo check or make it logical. Current ensures alignment)
+                        if True: # frame_count % frame_skip_group == 0: -> Removed constraint for now
+                            
+                            # CROP STRATEGY: ORIGINAL (Best Quality)
+                            # norm_crop (112x112) is too small for UI.
+                            # We revert to bounding box crop.
+                            face_img = frame[y1:y2, x1:x2]
                             
                             if face_img.size == 0:
                                 continue
@@ -165,6 +192,8 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
                                     "group_id": f"celebrity_{idx:03d}"
                                 })
                                 print(f"    → Yeni grup oluşturuldu: celebrity_{idx:03d}")
+                                # FIX: Yeni grubun ilk yüzü kendisiyle %100 uyuşur.
+                                match_score = 1.0
                             
                             # Update stats
                             if match_score > 0:
@@ -176,6 +205,8 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
                             
                             # Kaydet
                             count = celebrities[idx]["count"]
+                            save_path = os.path.join(celebrities[idx]["path"], f"img_{count:04d}.jpg")
+                            cv2.imwrite(save_path, face_img)
                             save_path = os.path.join(celebrities[idx]["path"], f"img_{count:04d}.jpg")
                             cv2.imwrite(save_path, face_img)
                             celebrities[idx]["count"] += 1
@@ -244,6 +275,8 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         if current_status != "error":
              print(f"Setting COMPLETED status for {movie_title} (Key: {cache_key})")
              cache.set(cache_key, "completed", timeout=3600)
+             # Invalidate Group List Cache so UI sees new groups immediately
+             cache.delete(f"groups_list_{safe_movie_title}")
              
         # Cleanup if needed
         if 'cap' in locals() and cap.isOpened():

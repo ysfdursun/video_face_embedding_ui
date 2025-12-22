@@ -6,8 +6,9 @@ from django.http import StreamingHttpResponse
 from core.forms import VideoUploadForm
 from core.face_processor import process_and_extract_faces_stream
 from core.services.video_service import save_uploaded_video, get_uploaded_videos
-from core.services.face_service import count_pending_groups
+from core.services.face_service import count_pending_groups, count_pending_faces
 from core.utils.file_utils import get_safe_filename
+from core.models import Actor, Movie
 
 def welcome(request):
     """Landing page with upload/label options."""
@@ -29,11 +30,51 @@ def home(request):
 
     videos = get_uploaded_videos()
     pending_groups_count = count_pending_groups()
+    pending_faces = count_pending_faces()
+    
+    # --- Statistics for Dashboard ---
+    total_actors = Actor.objects.count()
+    total_movies = Movie.objects.count()
+    
+    # Count total labeled faces (approximate via filesystem walk or cache)
+    # Simple recursive count for now (limit depth to avoid hangs on huge datasets, but labeled_faces is flat-ish)
+    total_labeled_faces = 0
+    labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces')
+    if os.path.exists(labeled_dir):
+        for _, _, files in os.walk(labeled_dir):
+            total_labeled_faces += len([f for f in files if f.endswith('.jpg')])
+
+    today_stats = {
+        'total_labeled_faces_safe': float(total_labeled_faces),
+        'pending_faces_safe': float(pending_faces),
+    }
+
+    # Calculate Rates
+    total_faces_all = total_labeled_faces + pending_faces
+    if total_faces_all > 0:
+        identification_rate = int((total_labeled_faces / total_faces_all) * 100)
+    else:
+        identification_rate = 0
+        
+    # Dataset Quality (Simplified: 100% if everything is labeled, else penalize)
+    if pending_faces == 0:
+        quality_rate = 100
+    else:
+        quality_rate = max(0, 100 - int((pending_faces / (total_faces_all + 1)) * 100))
 
     return render(request, 'core/home.html', {
         'form': form,
         'videos': videos,
         'pending_groups_count': pending_groups_count,
+        'stats': {
+             'total_actors': total_actors,
+             'total_movies': total_movies,
+             'total_videos': len(videos),
+             'total_labeled_faces': total_labeled_faces,
+             'pending_faces': pending_faces,
+             'identification_rate': identification_rate,
+             'quality_rate': quality_rate,
+        }
     })
 
 def processing_page(request, movie_filename):

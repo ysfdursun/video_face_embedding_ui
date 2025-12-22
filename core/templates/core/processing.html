@@ -35,7 +35,14 @@
                     <div class="w-full bg-slate-200 rounded-full h-2.5 mb-2">
                         <div class="bg-indigo-600 h-2.5 rounded-full animate-pulse" style="width: 100%"></div>
                     </div>
-                    <p class="text-slate-500 text-sm">Yüzler algılanıyor ve gruplandırılıyor. Lütfen sayfayı kapatmayın.</p>
+                    <p class="text-slate-500 text-sm mb-4">Yüzler algılanıyor ve gruplandırılıyor. Lütfen sayfayı kapatmayın.</p>
+                    
+                    <!-- Failsafe Button -->
+                    <div x-show="showFailsafe" style="display: none;" x-transition.opacity.duration.1000ms>
+                        <button @click="finish()" class="text-xs text-indigo-500 hover:text-indigo-700 font-semibold underline">
+                            İşlem bitti ama yönlendirilmedi mi? Tıklayın.
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -60,10 +67,16 @@ function processingMonitor() {
     return {
         completed: false,
         redirectTimer: null,
+        showFailsafe: false,
 
         init() {
             // Backup poller in case onerror fails (some browsers keep waiting forever)
             this.checkStatusLoop();
+            
+            // Show manual continue button after 15 seconds (just in case)
+            setTimeout(() => {
+                if (!this.completed) this.showFailsafe = true;
+            }, 10000); // 10s wait
         },
 
         handleStreamEnd() {

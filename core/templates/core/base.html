@@ -37,45 +37,87 @@
     </button>
  
     <aside id="logo-sidebar" class="fixed top-0 left-0 z-40 w-64 h-screen transition-transform -translate-x-full sm:translate-x-0 bg-slate-900 border-r border-slate-800" aria-label="Sidebar">
-       <div class="h-full px-3 py-4 overflow-y-auto bg-slate-900">
-          <a href="{% url 'core:welcome' %}" class="flex items-center ps-2.5 mb-8">
-             <i class="bi bi-film text-indigo-500 text-2xl me-3"></i>
-             <span class="self-center text-xl font-semibold whitespace-nowrap text-white">Yüz Etiketleme</span>
+       <div class="h-full px-4 py-8 overflow-y-auto bg-slate-900 flex flex-col">
+          <!-- Logo -->
+          <a href="{% url 'core:home' %}" class="flex items-center ps-2.5 mb-10 group">
+             <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-110 transition-transform duration-300">
+                 <i class="bi bi-cpu-fill text-white text-xl"></i>
+             </div>
+             <div class="ms-3">
+                 <h1 class="text-xl font-bold text-white tracking-tight">FaceAI <span class="text-indigo-400">Studio</span></h1>
+                 <p class="text-xs text-slate-500 font-medium">Professional Suite</p>
+             </div>
           </a>
-          <ul class="space-y-2 font-medium">
+
+          <!-- Navigation -->
+          <ul class="space-y-3 font-medium flex-1">
              <li>
-                <a href="{% url 'core:welcome' %}" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors">
-                   <i class="bi bi-house-door text-lg transition duration-75 text-slate-400 group-hover:text-white"></i>
-                   <span class="ms-3">Ana Sayfa</span>
+                <a href="{% url 'core:home' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1 {% if request.resolver_match.url_name == 'home' %}bg-slate-800 text-white shadow-sm ring-1 ring-white/10{% endif %}">
+                   <i class="bi bi-grid-1x2-fill text-xl transition-colors group-hover:text-indigo-400 {% if request.resolver_match.url_name == 'home' %}text-indigo-500{% endif %}"></i>
+                   <span class="ms-3">Panel</span>
                 </a>
              </li>
+             
+             <div class="pt-4 pb-2">
+                 <p class="px-3 text-xs font-bold text-slate-600 uppercase tracking-wider">Medya Yönetimi</p>
+             </div>
+
              <li>
-                <a href="{% url 'core:label_all_faces' %}" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors">
-                   <i class="bi bi-tags text-lg transition duration-75 text-slate-400 group-hover:text-white"></i>
-                   <span class="ms-3">Yüzleri Etiketle</span>
-                </a>
-             </li>
-             <li>
-                <a href="{% url 'core:actors_dashboard' %}" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors">
-                   <i class="bi bi-people text-lg transition duration-75 text-slate-400 group-hover:text-white"></i>
-                   <span class="ms-3">Aktörler</span>
-                </a>
-             </li>
-             <li>
-                <a href="{% url 'core:movies_dashboard' %}" class="flex items-center p-2 text-slate-300 rounded-lg hover:bg-slate-800 hover:text-white group transition-colors">
-                   <i class="bi bi-collection-play text-lg transition duration-75 text-slate-400 group-hover:text-white"></i>
+                <a href="{% url 'core:movies_dashboard' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
+                   <i class="bi bi-collection-play-fill text-xl transition-colors group-hover:text-blue-400"></i>
                    <span class="ms-3">Filmler</span>
+                </a>
+             </li>
+             <li>
+                <a href="{% url 'core:actors_dashboard' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
+                   <i class="bi bi-people-fill text-xl transition-colors group-hover:text-emerald-400"></i>
+                   <span class="ms-3">Oyuncular</span>
+                </a>
+             </li>
+             
+             <div class="pt-4 pb-2">
+                 <p class="px-3 text-xs font-bold text-slate-600 uppercase tracking-wider">Analiz Araçları</p>
+             </div>
+
+             <li>
+                <a href="{% url 'core:label_all_faces' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
+                   <i class="bi bi-tags-fill text-xl transition-colors group-hover:text-amber-400"></i>
+                   <span class="ms-3 flex-1">Etiketleme</span>
+                   <span class="inline-flex items-center justify-center w-3 h-3 p-3 ms-3 text-xs font-medium text-amber-800 bg-amber-100 rounded-full group-hover:bg-amber-500 group-hover:text-white transition-colors">!</span>
+                </a>
+             </li>
+
+             <div class="pt-4 pb-2">
+                 <p class="px-3 text-xs font-bold text-slate-600 uppercase tracking-wider">Sistem</p>
+             </div>
+
+             <li>
+                <a href="{% url 'core:settings' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
+                   <i class="bi bi-gear-wide-connected text-xl transition-colors group-hover:text-slate-200"></i>
+                   <span class="ms-3">Ayarlar</span>
                 </a>
              </li>
           </ul>
           
-          <div class="mt-auto absolute bottom-4 left-0 w-full px-3">
-             <div class="p-4 bg-slate-800 rounded-xl border border-slate-700">
-                <p class="text-xs text-slate-400 mb-1">Sistem Durumu</p>
-                <div class="flex items-center gap-2">
-                   <span class="flex w-2.5 h-2.5 bg-green-500 rounded-full"></span>
-                   <span class="text-sm font-medium text-slate-200">Aktif</span>
+          <!-- Bottom Status -->
+          <div class="mt-auto pt-6 border-t border-slate-800">
+             <div class="p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50 backdrop-blur-sm">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="relative">
+                        <span class="flex w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
+                        <span class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                    </div>
+                   <span class="text-sm font-bold text-slate-200">Sistem Çevrimiçi</span>
                 </div>
+                <p class="text-xs text-slate-500 mt-1">
+                    GPU Hızlandırma: 
+                    <span class="font-bold {{ global_settings.gpu_enabled|yesno:'text-emerald-500,text-slate-400' }}">
+                        {{ global_settings.gpu_enabled|yesno:"Aktif,Pasif" }}
+                    </span>
+                    {% if global_settings.gpu_enabled %}
+                    <span class="text-[10px] text-emerald-600 bg-emerald-100 px-1 rounded ml-1">CUDA</span>
+                    {% endif %}
+                </p>
              </div>
           </div>
        </div>
