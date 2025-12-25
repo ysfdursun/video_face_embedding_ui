@@ -5,6 +5,7 @@ import insightface
 from insightface.app import FaceAnalysis
 import os
 from django.conf import settings
+import time
 
 
 def get_execution_providers():
@@ -87,7 +88,15 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         if not gpu_enabled:
              providers = ['CPUExecutionProvider']
 
-        app = FaceAnalysis(name='buffalo_l', providers=providers)
+        insightface_root = os.path.join(os.path.expanduser("~"), ".insightface")
+
+        # [1/2] Detection: buffalo_sc (SCRFD-2.5G içerir)
+        print("\n[1/2] Loading SCRFD-2.5G detector (via buffalo_sc)...")
+        app = FaceAnalysis(
+            name='buffalo_sc',
+            root=insightface_root,
+            providers=providers
+        )
         app.prepare(ctx_id=0, det_size=(640, 640))
         
         # Face alignment için gerekli
@@ -131,6 +140,10 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         
         print(f"İşleme başlanıyor: Toplam {total_frames} kare\n")
         
+        fps_start_time = time.time()
+        fps_counter = 0
+        fps_display = 0.0
+
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -217,7 +230,15 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
             
             faces_str = f"Faces: {face_index}"
             groups_str = f" | Groups: {len(celebrities)}" if group_faces and celebrities else ""
-            progress_text = f"Progress: {progress:.1f}% | {faces_str}{groups_str}"
+            
+            # FPS Calculation
+            fps_counter += 1
+            if fps_counter % 30 == 0:
+                fps_end_time = time.time()
+                fps_display = 30 / (fps_end_time - fps_start_time)
+                fps_start_time = fps_end_time
+            
+            progress_text = f"FPS: {fps_display:.1f} | Progress: {progress:.1f}% | {faces_str}{groups_str}"
             
             font = cv2.FONT_HERSHEY_SIMPLEX
             (text_width, text_height), baseline = cv2.getTextSize(progress_text, font, 0.7, 2)
