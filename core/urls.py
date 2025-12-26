@@ -20,6 +20,7 @@ urlpatterns = [
     path('api/upload-photo/', views.upload_photo, name='upload_photo'),
     path('movies/', views.movies_dashboard, name='movies_dashboard'),
     path('movies/<int:movie_id>/', views.movie_detail, name='movie_detail'),
+    path('movies/<int:movie_id>/delete/', views.delete_movie_view, name='delete_movie_view'),
     path('api/movie/create/', views.MovieCreateAPI.as_view(), name='api_create_movie'),
     path('api/actor/create/', views.ActorCreateAPI.as_view(), name='api_create_actor'),
     path('api/actor/delete/', views.ActorDeleteAPI.as_view(), name='api_delete_actor'),

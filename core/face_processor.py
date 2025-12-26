@@ -1,4 +1,13 @@
 # -*- coding: utf-8 -*-
+"""
+Face Processor Module - Enhanced with Quality Scoring
+
+Integrates:
+- FaceQualityScorer: Blur, illumination, pose scoring
+- DuplicateDetector: pHash and embedding similarity
+- FaceDetection model: Persistent quality metrics storage
+"""
+
 import cv2
 import numpy as np
 import insightface
@@ -6,6 +15,10 @@ from insightface.app import FaceAnalysis
 import os
 from django.conf import settings
 import time
+
+# Quality and duplicate detection modules
+from core.quality.face_quality import get_quality_scorer
+from core.quality.duplicate_detector import get_duplicate_detector
 
 
 def get_execution_providers():
@@ -35,7 +48,11 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
     # Cache key setup
     from django.core.cache import cache
     from core.utils.file_utils import get_safe_filename
-    from core.models import FaceRecognitionSettings, Movie, FaceGroup
+    from core.models import FaceRecognitionSettings, Movie, FaceGroup, FaceDetection
+    
+    # Initialize quality and duplicate checkers
+    quality_scorer = get_quality_scorer()
+    duplicate_detector = get_duplicate_detector()
     
     # --- GET SETTINGS ---
     try:
@@ -45,6 +62,8 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         frame_skip_extract = settings_obj.frame_skip_extract
         frame_skip_group = settings_obj.frame_skip_group
         gpu_enabled = settings_obj.gpu_enabled
+        quality_threshold = settings_obj.quality_threshold
+        redundancy_threshold = settings_obj.redundancy_threshold
     except Exception as e:
         print(f"Error loading settings, using defaults: {e}")
         sim_threshold = 0.45
@@ -52,6 +71,12 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         frame_skip_extract = 10
         frame_skip_group = 5
         gpu_enabled = True
+        quality_threshold = 0.50
+        redundancy_threshold = 0.85
+    
+    # Apply thresholds to quality modules
+    quality_scorer.MIN_QUALITY_SCORE = quality_threshold
+    duplicate_detector.REDUNDANT_THRESHOLD = redundancy_threshold
 
     safe_movie_title = get_safe_filename(movie_title)
     cache_key = f"processing_status_{safe_movie_title}"
@@ -60,12 +85,15 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         print(f"'{movie_title}' için yüz tanıma başlıyor (Threshold: {sim_threshold}, GPU: {gpu_enabled})...")
         
         # Movie objesini al veya oluştur (FaceGroup için gerekli)
+        # Try exact match first, then safe filename match
         movie_obj = Movie.objects.filter(title=movie_title).first()
         if not movie_obj:
-            movie_obj, _ = Movie.objects.get_or_create(title=movie_title)
+            movie_obj = Movie.objects.filter(title=safe_movie_title).first()
+        if not movie_obj:
+            movie_obj, _ = Movie.objects.get_or_create(title=safe_movie_title)
         
-        # Çıktı klasörünü oluştur - SADECE grouped_faces
-        grouped_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces', movie_title)
+        # Çıktı klasörünü oluştur - safe filename kullan!
+        grouped_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces', safe_movie_title)
         
         # CLEANUP: Önceki verileri sil (Reprocess = Fresh Start)
         if os.path.exists(grouped_dir):
@@ -110,9 +138,14 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         frame_count = 0
         face_index = 0
+        skipped_quality = 0  # Track quality-filtered faces
+        skipped_duplicate = 0  # Track duplicate-filtered faces
         
-        # Grouping state
-        celebrities = [] if group_faces else None  
+        # Grouping state with enhanced tracking
+        celebrities = [] if group_faces else None
+        # Track recent hashes for duplicate detection within video
+        recent_hashes = []  # List of (hash, group_idx) tuples
+        MAX_RECENT_HASHES = 500  # Sliding window size  
         
         def assign_identity(emb):
             """Embedding'i mevcut gruplarla karşılaştır (Adaptive Threshold)."""
@@ -162,6 +195,7 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
                     for face_data in faces:
                         face_index += 1
                         bbox = face_data.bbox.astype(int)
+                        det_score = float(face_data.det_score) if hasattr(face_data, 'det_score') else 1.0
                         
                         # Sınırları kontrol et (display için)
                         h, w = frame.shape[:2]
@@ -174,55 +208,125 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
                         if (x2 - x1) < min_face_size or (y2 - y1) < min_face_size:
                             continue
                         
-                        # Display kareye dikdörtgen çiz
+                        # Crop face for quality analysis - use ALIGNED face
+                        # norm_crop returns 112x112 aligned face
+                        if hasattr(face_data, 'kps') and face_data.kps is not None:
+                            face_img = face_aligner.norm_crop(frame, face_data.kps)
+                        else:
+                            # Fallback to bbox crop if no landmarks
+                            face_img = frame[y1:y2, x1:x2]
+                        
+                        if face_img is None or face_img.size == 0:
+                            continue
+                        
+                        # === QUALITY SCORING ===
+                        landmarks = face_data.kps if hasattr(face_data, 'kps') else None
+                        quality_result = quality_scorer.get_combined_score(
+                            face_img, 
+                            landmarks,
+                            det_score
+                        )
+                        
+                        # Quality gating: Skip low-quality faces
+                        if not quality_result['is_valid']:
+                            skipped_quality += 1
+                            # Draw red box for rejected faces
+                            cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 0, 255), 1)
+                            continue
+                        
+                        # === DUPLICATE DETECTION (pHash) ===
+                        face_hash = duplicate_detector.compute_phash(face_img)
+                        
+                        # Check against recent hashes
+                        is_duplicate = False
+                        for prev_hash, _ in recent_hashes:
+                            if duplicate_detector.is_near_duplicate(face_hash, prev_hash):
+                                is_duplicate = True
+                                break
+                        
+                        if is_duplicate:
+                            skipped_duplicate += 1
+                            # Draw yellow box for duplicates
+                            cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 255, 255), 1)
+                            continue
+                        
+                        # Get embedding for grouping and redundancy check
+                        emb = face_data.normed_embedding
+                        
+                        # === EMBEDDING REDUNDANCY CHECK ===
+                        # Check if this face is too similar to existing faces in any group
+                        is_redundant = False
+                        for celeb in celebrities:
+                            if celeb.get("embeddings"):
+                                is_red, sim = duplicate_detector.is_redundant(emb, celeb["embeddings"][-20:])  # Check last 20
+                                if is_red:
+                                    is_redundant = True
+                                    break
+                        
+                        if is_redundant:
+                            skipped_duplicate += 1
+                            # Draw orange box for embedding redundant
+                            cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 165, 255), 1)
+                            continue
+                        
+                        # Display green box for accepted faces
                         cv2.rectangle(frame_for_display, (x1, y1), (x2, y2), (0, 255, 0), 2)
                         
-                        # --- GROUPING: Her yüzü SADECE gruplandırarak kaydet ---
-                        # Logic Fix: Ensure we don't skip if we already detected
-                        # (Remove the second modulo check or make it logical. Current ensures alignment)
-                        if True: # frame_count % frame_skip_group == 0: -> Removed constraint for now
-                            
-                            # CROP STRATEGY: ORIGINAL (Best Quality)
-                            # norm_crop (112x112) is too small for UI.
-                            # We revert to bounding box crop.
-                            face_img = frame[y1:y2, x1:x2]
-                            
-                            if face_img.size == 0:
-                                continue
-                            emb = face_data.normed_embedding
-                            idx, match_score = assign_identity(emb)
-                            
-                            if idx is None:  # Yeni grup
-                                idx = len(celebrities)
-                                celeb_dir = os.path.join(grouped_dir, f"celebrity_{idx:03d}")
-                                os.makedirs(celeb_dir, exist_ok=True)
-                                celebrities.append({
-                                    "rep": emb,
-                                    "count": 0,
-                                    "path": celeb_dir,
-                                    "total_sim": 0.0,
-                                    "sim_count": 0,
-                                    "group_id": f"celebrity_{idx:03d}"
-                                })
-                                print(f"    → Yeni grup oluşturuldu: celebrity_{idx:03d}")
-                                # FIX: Yeni grubun ilk yüzü kendisiyle %100 uyuşur.
-                                match_score = 1.0
-                            
-                            # Update stats
-                            if match_score > 0:
-                                celebrities[idx]["total_sim"] += match_score
-                                celebrities[idx]["sim_count"] += 1
-                            
-                            # EMA
-                            celebrities[idx]["rep"] = 0.9 * celebrities[idx]["rep"] + 0.1 * emb
-                            
-                            # Kaydet
-                            count = celebrities[idx]["count"]
-                            save_path = os.path.join(celebrities[idx]["path"], f"img_{count:04d}.jpg")
-                            cv2.imwrite(save_path, face_img)
-                            save_path = os.path.join(celebrities[idx]["path"], f"img_{count:04d}.jpg")
-                            cv2.imwrite(save_path, face_img)
-                            celebrities[idx]["count"] += 1
+                        # Show quality score on frame
+                        q_text = f"Q:{quality_result['quality_score']:.2f}"
+                        cv2.putText(frame_for_display, q_text, (x1, y1-5),
+                                   cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+                        
+                        # === GROUPING ===
+                        # emb already extracted above for redundancy check
+                        idx, match_score = assign_identity(emb)
+                        
+                        if idx is None:  # New group
+                            idx = len(celebrities)
+                            celeb_dir = os.path.join(grouped_dir, f"celebrity_{idx:03d}")
+                            os.makedirs(celeb_dir, exist_ok=True)
+                            celebrities.append({
+                                "rep": emb,
+                                "count": 0,
+                                "path": celeb_dir,
+                                "total_sim": 0.0,
+                                "sim_count": 0,
+                                "total_quality": 0.0,
+                                "quality_count": 0,
+                                "embeddings": [emb],  # Store for multi-template
+                                "group_id": f"celebrity_{idx:03d}"
+                            })
+                            print(f"    → New group created: celebrity_{idx:03d}")
+                            match_score = 1.0
+                        else:
+                            # Store embedding for multi-template (limited to 50)
+                            if len(celebrities[idx].get("embeddings", [])) < 50:
+                                if "embeddings" not in celebrities[idx]:
+                                    celebrities[idx]["embeddings"] = []
+                                celebrities[idx]["embeddings"].append(emb)
+                        
+                        # Update stats
+                        if match_score > 0:
+                            celebrities[idx]["total_sim"] += match_score
+                            celebrities[idx]["sim_count"] += 1
+                        
+                        # Update quality stats
+                        celebrities[idx]["total_quality"] = celebrities[idx].get("total_quality", 0) + quality_result['quality_score']
+                        celebrities[idx]["quality_count"] = celebrities[idx].get("quality_count", 0) + 1
+                        
+                        # EMA update for representative embedding
+                        celebrities[idx]["rep"] = 0.9 * celebrities[idx]["rep"] + 0.1 * emb
+                        
+                        # Save face image
+                        count = celebrities[idx]["count"]
+                        save_path = os.path.join(celebrities[idx]["path"], f"img_{count:04d}.jpg")
+                        cv2.imwrite(save_path, face_img)
+                        celebrities[idx]["count"] += 1
+                        
+                        # Update recent hashes (sliding window)
+                        recent_hashes.append((face_hash, idx))
+                        if len(recent_hashes) > MAX_RECENT_HASHES:
+                            recent_hashes.pop(0)
             
             # --- İlerleme göstergesi ---
             progress = (frame_count / total_frames) * 100
@@ -230,6 +334,7 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
             
             faces_str = f"Faces: {face_index}"
             groups_str = f" | Groups: {len(celebrities)}" if group_faces and celebrities else ""
+            skip_str = f" | Skip Q:{skipped_quality} D:{skipped_duplicate}"
             
             # FPS Calculation
             fps_counter += 1
@@ -238,7 +343,7 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
                 fps_display = 30 / (fps_end_time - fps_start_time)
                 fps_start_time = fps_end_time
             
-            progress_text = f"FPS: {fps_display:.1f} | Progress: {progress:.1f}% | {faces_str}{groups_str}"
+            progress_text = f"FPS: {fps_display:.1f} | Progress: {progress:.1f}% | {faces_str}{groups_str}{skip_str}"
             
             font = cv2.FONT_HERSHEY_SIMPLEX
             (text_width, text_height), baseline = cv2.getTextSize(progress_text, font, 0.7, 2)
@@ -257,15 +362,24 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         
         # --- POST-PROCESSING: SAVE GROUP STATS TO DB ---
         if celebrities:
-             print("Saving group stats to database...")
-             for c in celebrities:
+            print(f"\n📊 Processing Summary:")
+            print(f"   Total faces detected: {face_index}")
+            print(f"   Skipped (quality): {skipped_quality}")
+            print(f"   Skipped (duplicate): {skipped_duplicate}")
+            print(f"   Groups created: {len(celebrities)}")
+            print("\nSaving group stats to database...")
+            
+            for c in celebrities:
                 try:
-                    # Calculate stats
-                    avg_conf = 0.0
+                    # Calculate average confidence
+                    avg_conf = 1.0
                     if c["sim_count"] > 0:
                         avg_conf = c["total_sim"] / c["sim_count"]
-                    else:
-                        avg_conf = 1.0 # Single face
+                    
+                    # Calculate average quality
+                    avg_quality = 0.0
+                    if c.get("quality_count", 0) > 0:
+                        avg_quality = c["total_quality"] / c["quality_count"]
                     
                     # Update or Create FaceGroup
                     fg, created = FaceGroup.objects.get_or_create(
@@ -273,8 +387,19 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
                         group_id=c["group_id"]
                     )
                     fg.face_count = c["count"]
+                    fg.total_faces = c["count"]
                     fg.avg_confidence = avg_conf
+                    fg.avg_quality = avg_quality
+                    
+                    # Store representative embedding
+                    if c.get("embeddings"):
+                        # Use mean embedding as representative
+                        rep_emb = np.mean(c["embeddings"], axis=0)
+                        rep_emb = rep_emb / np.linalg.norm(rep_emb)
+                        fg.set_representative_embedding(rep_emb)
+                    
                     fg.update_risk_level()
+                    
                 except Exception as e:
                     print(f"Error saving FaceGroup stats for {c['group_id']}: {e}")
 

@@ -31,49 +31,70 @@
         {% if movies_page %}
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
             {% for movie in movies_page %}
-            <a href="{% url 'core:movie_detail' movie.id %}" class="group block">
-                <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all overflow-hidden h-full flex flex-col">
-                    
-                    <!-- Poster / Face Pile Area -->
-                    <div class="aspect-video bg-slate-800 relative overflow-hidden group-hover:opacity-90 transition-opacity">
-                         {% if movie.preview_cast %}
-                            <div class="grid grid-cols-2 h-full">
-                                {% for person in movie.preview_cast %}
-                                    <img src="{{ MEDIA_URL }}{{ person.image }}" class="w-full h-full object-cover">
-                                {% endfor %}
-                                <!-- Fill with placeholder if less than 4 -->
-                                {% if movie.preview_cast|length < 4 %}
-                                    <div class="bg-slate-700 flex items-center justify-center w-full h-full opacity-50">
-                                        <i class="bi bi-film text-slate-500 text-2xl"></i>
-                                    </div>
-                                {% endif %}
-                            </div>
-                         {% else %}
-                            <div class="w-full h-full flex items-center justify-center">
-                                <i class="bi bi-film text-slate-600 text-6xl"></i>
-                            </div>
-                         {% endif %}
-                         
-                         <!-- Title Overlay -->
-                         <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
-                             <h3 class="text-white font-bold text-lg truncate">{{ movie.title }}</h3>
-                         </div>
-                    </div>
-
-                    <!-- Details -->
-                    <div class="p-4 flex-1 flex flex-col justify-between">
-                        <div>
-                            <div class="flex items-center gap-2 text-sm text-slate-600 mb-2">
-                                <i class="bi bi-people-fill text-indigo-500"></i>
-                                <span>{{ movie.actor_count }} Oyuncu</span>
-                            </div>
+            <div class="group relative" x-data="{ showMenu: false }">
+                <a href="{% url 'core:movie_detail' movie.id %}" class="block">
+                    <div class="bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all overflow-hidden h-full flex flex-col">
+                        
+                        <!-- Poster / Face Pile Area -->
+                        <div class="aspect-video bg-slate-800 relative overflow-hidden group-hover:opacity-90 transition-opacity">
+                             {% if movie.preview_cast %}
+                                <div class="grid grid-cols-2 h-full">
+                                    {% for person in movie.preview_cast %}
+                                        <img src="{{ MEDIA_URL }}{{ person.image }}" class="w-full h-full object-cover">
+                                    {% endfor %}
+                                    <!-- Fill with placeholder if less than 4 -->
+                                    {% if movie.preview_cast|length < 4 %}
+                                        <div class="bg-slate-700 flex items-center justify-center w-full h-full opacity-50">
+                                            <i class="bi bi-film text-slate-500 text-2xl"></i>
+                                        </div>
+                                    {% endif %}
+                                </div>
+                             {% else %}
+                                <div class="w-full h-full flex items-center justify-center">
+                                    <i class="bi bi-film text-slate-600 text-6xl"></i>
+                                </div>
+                             {% endif %}
+                             
+                             <!-- Title Overlay -->
+                             <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+                                 <h3 class="text-white font-bold text-lg truncate">{{ movie.title }}</h3>
+                             </div>
                         </div>
-                        <span class="text-sm font-semibold text-indigo-600 mt-2 block group-hover:underline">
-                            Detayları Gör <i class="bi bi-arrow-right"></i>
-                        </span>
+
+                        <!-- Details -->
+                        <div class="p-4 flex-1 flex flex-col justify-between">
+                            <div>
+                                <div class="flex items-center gap-2 text-sm text-slate-600 mb-2">
+                                    <i class="bi bi-people-fill text-indigo-500"></i>
+                                    <span>{{ movie.actor_count }} Oyuncu</span>
+                                </div>
+                            </div>
+                            <span class="text-sm font-semibold text-indigo-600 mt-2 block group-hover:underline">
+                                Detayları Gör <i class="bi bi-arrow-right"></i>
+                            </span>
+                        </div>
                     </div>
+                </a>
+                
+                <!-- Delete Button -->
+                <button @click.prevent="showMenu = !showMenu" 
+                        class="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-white/90 hover:bg-red-600 hover:text-white text-slate-500 rounded-full shadow-md transition-all opacity-0 group-hover:opacity-100">
+                    <i class="bi bi-three-dots-vertical"></i>
+                </button>
+                
+                <!-- Dropdown Menu -->
+                <div x-show="showMenu" @click.away="showMenu = false"
+                     x-transition:enter="transition ease-out duration-100"
+                     x-transition:enter-start="opacity-0 scale-95"
+                     x-transition:enter-end="opacity-100 scale-100"
+                     class="absolute top-10 right-2 z-20 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden"
+                     style="display: none;">
+                    <button @click="if(confirm('{{ movie.title }} filmini silmek istediğinize emin misiniz? Bu işlem geri alınamaz!')) { window.location.href='{% url 'core:delete_movie_view' movie.id %}' }"
+                            class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
+                        <i class="bi bi-trash3"></i> Filmi Sil
+                    </button>
                 </div>
-            </a>
+            </div>
             {% endfor %}
         </div>
 

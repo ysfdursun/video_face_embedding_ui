@@ -147,10 +147,13 @@ def label_all_faces(request):
             if fg:
                 g['risk_level'] = fg.risk_level
                 g['avg_confidence'] = fg.avg_confidence
-                # g['face_count'] = fg.face_count # Filesystem is truth for count, but DB has it too
+                g['avg_quality'] = fg.avg_quality
+                g['total_faces'] = fg.total_faces
             else:
-                g['risk_level'] = 'HIGH' # Default safe
+                g['risk_level'] = 'HIGH'  # Default safe
                 g['avg_confidence'] = 0.0
+                g['avg_quality'] = 0.0
+                g['total_faces'] = len(g.get('faces', []))
 
     
     # Film cast listesi

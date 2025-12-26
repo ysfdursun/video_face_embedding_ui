@@ -253,3 +253,215 @@ def sync_face_groups(movie_name):
     except Exception as e:
         print(f"Sync Loop Error: {e}")
 
+
+# ============================================================
+# QUALITY-AWARE SERVICE FUNCTIONS
+# ============================================================
+
+def get_group_quality_stats(movie_name):
+    """
+    Get quality statistics for all groups in a movie.
+    
+    Returns:
+        List of dicts with group_id, face_count, avg_quality, avg_confidence, risk_level
+    """
+    from core.models import Movie, FaceGroup
+    
+    try:
+        movie_obj = Movie.objects.filter(title=movie_name).first()
+        if not movie_obj:
+            # Try slug match
+            for m in Movie.objects.all():
+                if get_safe_filename(m.title) == movie_name:
+                    movie_obj = m
+                    break
+        
+        if not movie_obj:
+            return []
+        
+        groups = FaceGroup.objects.filter(movie=movie_obj).values(
+            'group_id', 'face_count', 'total_faces', 
+            'avg_quality', 'avg_confidence', 'risk_level'
+        )
+        
+        return list(groups)
+        
+    except Exception as e:
+        print(f"Error getting quality stats: {e}")
+        return []
+
+
+def cleanup_outliers(movie_name, threshold=0.70):
+    """
+    Mark outlier faces in each group based on embedding similarity to group mean.
+    
+    Outliers are faces with cosine similarity < threshold to group centroid.
+    
+    Args:
+        movie_name: Movie title
+        threshold: Minimum similarity to group mean (default 0.70)
+        
+    Returns:
+        Number of outliers marked
+    """
+    from core.models import Movie, FaceGroup, FaceDetection
+    from core.quality.template_manager import get_template_manager
+    import numpy as np
+    
+    template_manager = get_template_manager()
+    outlier_count = 0
+    
+    try:
+        movie_obj = Movie.objects.filter(title=movie_name).first()
+        if not movie_obj:
+            for m in Movie.objects.all():
+                if get_safe_filename(m.title) == movie_name:
+                    movie_obj = m
+                    break
+        
+        if not movie_obj:
+            return 0
+        
+        groups = FaceGroup.objects.filter(movie=movie_obj)
+        
+        for fg in groups:
+            # Get all detections in this group
+            detections = FaceDetection.objects.filter(face_group=fg, is_valid=True)
+            
+            if detections.count() < 3:
+                continue  # Need at least 3 faces to detect outliers
+            
+            # Collect embeddings
+            embeddings = []
+            detection_ids = []
+            
+            for det in detections:
+                emb = det.get_embedding()
+                if emb is not None:
+                    embeddings.append(emb)
+                    detection_ids.append(det.id)
+            
+            if len(embeddings) < 3:
+                continue
+            
+            # Calculate group mean
+            group_mean = template_manager.calculate_group_mean(embeddings)
+            
+            # Detect outliers
+            outlier_indices = template_manager.detect_outliers(embeddings, group_mean)
+            
+            # Mark outliers in DB
+            for idx in outlier_indices:
+                det_id = detection_ids[idx]
+                FaceDetection.objects.filter(id=det_id).update(is_outlier=True)
+                outlier_count += 1
+        
+        print(f"Marked {outlier_count} outliers in {movie_name}")
+        return outlier_count
+        
+    except Exception as e:
+        print(f"Error cleaning outliers: {e}")
+        return 0
+
+
+def regenerate_templates(movie_name):
+    """
+    Regenerate multi-template representations for all groups.
+    
+    Uses KMeans clustering to create multiple templates per group
+    based on the number of faces.
+    
+    Args:
+        movie_name: Movie title
+        
+    Returns:
+        Number of groups updated
+    """
+    from core.models import Movie, FaceGroup, FaceDetection
+    from core.quality.template_manager import get_template_manager
+    import numpy as np
+    
+    template_manager = get_template_manager()
+    updated_count = 0
+    
+    try:
+        movie_obj = Movie.objects.filter(title=movie_name).first()
+        if not movie_obj:
+            for m in Movie.objects.all():
+                if get_safe_filename(m.title) == movie_name:
+                    movie_obj = m
+                    break
+        
+        if not movie_obj:
+            return 0
+        
+        groups = FaceGroup.objects.filter(movie=movie_obj)
+        
+        for fg in groups:
+            # Get valid, non-outlier detections
+            detections = FaceDetection.objects.filter(
+                face_group=fg, 
+                is_valid=True, 
+                is_outlier=False
+            )
+            
+            embeddings = []
+            for det in detections:
+                emb = det.get_embedding()
+                if emb is not None:
+                    embeddings.append(emb)
+            
+            if not embeddings:
+                continue
+            
+            # Generate templates
+            templates = template_manager.generate_templates(embeddings)
+            
+            if templates is not None and len(templates) > 0:
+                # Store the first template as representative
+                # (for multi-template, we'd need a different storage strategy)
+                fg.set_representative_embedding(templates[0])
+                fg.save()
+                updated_count += 1
+        
+        print(f"Regenerated templates for {updated_count} groups in {movie_name}")
+        return updated_count
+        
+    except Exception as e:
+        print(f"Error regenerating templates: {e}")
+        return 0
+
+
+def get_embedding_for_comparison(face_group_id):
+    """
+    Get the representative embedding for a face group.
+    
+    Returns:
+        numpy array of shape (512,) or None
+    """
+    from core.models import FaceGroup
+    
+    try:
+        fg = FaceGroup.objects.get(id=face_group_id)
+        return fg.get_representative_embedding()
+    except FaceGroup.DoesNotExist:
+        return None
+
+
+def compare_embeddings(embedding1, embedding2):
+    """
+    Calculate cosine similarity between two embeddings.
+    
+    Args:
+        embedding1: First 512-D embedding
+        embedding2: Second 512-D embedding
+        
+    Returns:
+        Similarity score [-1.0, 1.0]
+    """
+    import numpy as np
+    
+    if embedding1 is None or embedding2 is None:
+        return 0.0
+    
+    return float(np.dot(embedding1, embedding2))

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Actor, Movie, MovieCast,FaceRecognitionSettings,FaceGroup
+from .models import Actor, Movie, MovieCast, FaceRecognitionSettings, FaceGroup, FaceDetection
 
 
 
@@ -8,4 +8,4 @@ admin.site.register(Movie)
 admin.site.register(MovieCast)
 admin.site.register(FaceRecognitionSettings)
 admin.site.register(FaceGroup)
-# Register your models here.
+admin.site.register(FaceDetection)

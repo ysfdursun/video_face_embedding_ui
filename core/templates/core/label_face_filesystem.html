@@ -219,6 +219,16 @@
                     </div>
                     
                     <div class="absolute bottom-2 right-2 flex gap-2">
+                        {% if group.avg_quality > 0 %}
+                        <!-- Quality Badge -->
+                        <div class="text-xs px-2 py-1 rounded-md backdrop-blur-sm font-semibold border
+                            {% if group.avg_quality >= 0.7 %} bg-blue-500/80 text-white border-blue-400
+                            {% elif group.avg_quality >= 0.5 %} bg-cyan-500/80 text-white border-cyan-400
+                            {% else %} bg-slate-500/80 text-white border-slate-400 {% endif %}">
+                            Q:{{ group.avg_quality|floatformat:2 }}
+                        </div>
+                        {% endif %}
+
                         {% if group.avg_confidence > 0 %}
                         <!-- Risk Badge -->
                         <div class="text-xs px-2 py-1 rounded-md backdrop-blur-sm font-semibold border

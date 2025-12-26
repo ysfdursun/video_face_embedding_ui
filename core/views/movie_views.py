@@ -1,5 +1,7 @@
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib import messages
 from core.services import movie_service
+from core.models import Movie
 
 def movies_dashboard(request):
     """
@@ -25,3 +27,16 @@ def movie_detail(request, movie_id):
          return render(request, 'core/404.html', status=404) # Assuming we will make a simplistic 404 or generic error
          
     return render(request, 'core/movie_detail.html', data)
+
+def delete_movie_view(request, movie_id):
+    """
+    Deletes a movie and all related data (cast, face groups).
+    """
+    movie = get_object_or_404(Movie, id=movie_id)
+    movie_title = movie.title
+    
+    # Delete the movie (cascade will handle related objects)
+    movie.delete()
+    
+    messages.success(request, f"'{movie_title}' filmi başarıyla silindi.")
+    return redirect('core:movies_dashboard')

@@ -14,6 +14,10 @@ def settings_view(request):
             settings_obj.frame_skip_group = int(request.POST.get('frame_skip_group', 5))
             settings_obj.gpu_enabled = request.POST.get('gpu_enabled') == 'on'
             
+            # Quality & Classification settings
+            settings_obj.quality_threshold = float(request.POST.get('quality_threshold', 0.50))
+            settings_obj.redundancy_threshold = float(request.POST.get('redundancy_threshold', 0.85))
+            
             settings_obj.save()
             messages.success(request, 'Ayarlar başarıyla güncellendi.')
         except ValueError:
