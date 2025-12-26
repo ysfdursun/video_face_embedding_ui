@@ -1,0 +1,314 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Video Yüz Tanıma{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-50 py-10" x-data="recognitionApp()">
+    <div class="max-w-5xl mx-auto px-4">
+        
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight mb-3">
+                <i class="bi bi-person-bounding-box text-cyan-500 mr-2"></i>
+                Video Yüz Tanıma
+            </h1>
+            <p class="text-lg text-slate-600">
+                Videolardaki yüzleri tanıyın
+                <span class="font-semibold text-cyan-600">({{ identities_count }} kimlik veritabanında)</span>
+            </p>
+        </div>
+
+        <!-- Settings Panel (Collapsible) -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+            <button @click="showSettings = !showSettings" 
+                    class="w-full px-6 py-4 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition-colors">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 bg-cyan-50 text-cyan-600 rounded-xl flex items-center justify-center">
+                        <i class="bi bi-sliders text-xl"></i>
+                    </div>
+                    <div class="text-left">
+                        <h3 class="font-bold text-slate-900">Tanıma Ayarları</h3>
+                        <p class="text-xs text-slate-500">
+                            Eşik: <span x-text="threshold"></span> | 
+                            Min Yüz: <span x-text="minFaceSize + 'px'"></span> | 
+                            Frame Skip: <span x-text="frameSkip"></span>
+                        </p>
+                    </div>
+                </div>
+                <i class="bi text-slate-400 text-xl" :class="showSettings ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+            </button>
+            
+            <div x-show="showSettings" x-collapse class="px-6 py-5 border-t border-slate-100">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Threshold -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">
+                            Eşik Değeri: <span class="text-cyan-600" x-text="threshold"></span>
+                        </label>
+                        <input type="range" x-model="threshold" min="0.1" max="0.8" step="0.01"
+                               class="w-full h-2 bg-slate-200 rounded-lg cursor-pointer accent-cyan-500">
+                        <p class="text-xs text-slate-400 mt-1">Düşük = daha fazla eşleşme</p>
+                    </div>
+                    
+                    <!-- Min Face Size -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">
+                            Min Yüz Boyutu: <span class="text-cyan-600" x-text="minFaceSize + 'px'"></span>
+                        </label>
+                        <input type="range" x-model="minFaceSize" min="20" max="100" step="5"
+                               class="w-full h-2 bg-slate-200 rounded-lg cursor-pointer accent-cyan-500">
+                        <p class="text-xs text-slate-400 mt-1">Küçük yüzleri filtrele</p>
+                    </div>
+                    
+                    <!-- Frame Skip -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-2">
+                            Frame Skip: <span class="text-cyan-600" x-text="frameSkip"></span>
+                        </label>
+                        <input type="range" x-model="frameSkip" min="1" max="15" step="1"
+                               class="w-full h-2 bg-slate-200 rounded-lg cursor-pointer accent-cyan-500">
+                        <p class="text-xs text-slate-400 mt-1">Yüksek = daha hızlı</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section (shown when not processing) -->
+        <div x-show="!isProcessing" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-6">
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <h3 class="font-bold text-slate-900 flex items-center gap-2">
+                    <i class="bi bi-cloud-arrow-up text-slate-400"></i>
+                    Video Yükle
+                </h3>
+                <p class="text-xs text-slate-500 mt-1">Video sisteme kaydedilmez, sadece işlenir</p>
+            </div>
+            
+            <div class="p-6">
+                <!-- Drop Zone -->
+                <div class="border-2 border-dashed rounded-xl p-8 text-center transition-colors"
+                     :class="isDragging ? 'border-cyan-500 bg-cyan-50' : 'border-slate-300 hover:border-cyan-400'"
+                     @dragover.prevent="isDragging = true"
+                     @dragleave.prevent="isDragging = false"
+                     @drop.prevent="handleDrop($event)">
+                    
+                    <input type="file" id="videoInput" accept="video/*" class="hidden" @change="handleFileSelect($event)">
+                    
+                    <template x-if="!selectedFile">
+                        <label for="videoInput" class="cursor-pointer">
+                            <i class="bi bi-film text-5xl text-slate-400 mb-4 block"></i>
+                            <p class="text-slate-600 font-medium">Videoyu sürükleyip bırakın</p>
+                            <p class="text-slate-400 text-sm mt-1">veya <span class="text-cyan-600 hover:underline">dosya seçin</span></p>
+                        </label>
+                    </template>
+                    
+                    <template x-if="selectedFile">
+                        <div>
+                            <i class="bi bi-file-earmark-play text-5xl text-cyan-500 mb-4 block"></i>
+                            <p class="text-slate-800 font-semibold" x-text="selectedFile.name"></p>
+                            <p class="text-slate-500 text-sm mt-1" x-text="formatFileSize(selectedFile.size)"></p>
+                            <button @click="selectedFile = null" class="text-red-500 hover:text-red-700 text-sm mt-3">
+                                <i class="bi bi-x-circle mr-1"></i> Kaldır
+                            </button>
+                        </div>
+                    </template>
+                </div>
+                
+                <!-- Upload Progress -->
+                <div x-show="isUploading" class="mt-4">
+                    <div class="w-full bg-slate-200 rounded-full h-2">
+                        <div class="bg-cyan-600 h-2 rounded-full transition-all" :style="'width: ' + uploadProgress + '%'"></div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-2 text-center" x-text="'Yükleniyor... ' + uploadProgress + '%'"></p>
+                </div>
+                
+                <!-- Start Button -->
+                <button @click="startRecognition()" 
+                        :disabled="!selectedFile || isUploading"
+                        :class="selectedFile && !isUploading ? 'bg-cyan-600 hover:bg-cyan-700 shadow-lg shadow-cyan-200' : 'bg-slate-300 cursor-not-allowed'"
+                        class="w-full mt-6 py-4 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2">
+                    <i class="bi bi-play-fill text-xl"></i>
+                    Tanımayı Başlat
+                </button>
+            </div>
+        </div>
+
+        <!-- Processing Section (shown when processing) -->
+        <div x-show="isProcessing" class="bg-white rounded-2xl shadow-lg border-2 border-cyan-100 overflow-hidden">
+            <!-- Header -->
+            <div class="bg-slate-900 px-6 py-4 flex justify-between items-center">
+                <div>
+                    <h4 class="text-lg font-bold text-white">
+                        <i class="bi bi-person-bounding-box text-cyan-400 mr-2"></i>
+                        Yüz Tanıma İşleniyor
+                    </h4>
+                    <p class="text-slate-400 text-sm" x-text="selectedFile?.name"></p>
+                </div>
+                <div class="flex items-center gap-2" x-show="!completed">
+                    <span class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                    <span class="text-green-400 text-sm font-medium">Canlı</span>
+                </div>
+            </div>
+            
+            <!-- Video Stream -->
+            <div class="bg-black relative">
+                <!-- Loading indicator -->
+                <div x-show="!streamLoaded && !completed" class="absolute inset-0 flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400 mx-auto mb-4"></div>
+                        <p class="text-cyan-400">Modeller yükleniyor...</p>
+                    </div>
+                </div>
+                <img id="videoStream" 
+                     :src="streamUrl"
+                     @load="streamLoaded = true"
+                     @error="handleStreamError($event)"
+                     class="w-full aspect-video object-contain">
+            </div>
+            
+            <!-- Completed Message -->
+            <div x-show="completed" class="p-8 text-center bg-emerald-50">
+                <i class="bi bi-check-circle-fill text-emerald-500 text-6xl mb-4 block"></i>
+                <h3 class="text-2xl font-bold text-slate-900 mb-2">Tanıma Tamamlandı!</h3>
+                <button @click="reset()" class="mt-4 px-6 py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-colors">
+                    <i class="bi bi-arrow-repeat mr-2"></i>
+                    Yeni Video
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function recognitionApp() {
+    return {
+        // Settings
+        showSettings: false,
+        threshold: 0.27,
+        minFaceSize: 30,
+        frameSkip: 5,
+        
+        // File
+        selectedFile: null,
+        isDragging: false,
+        
+        // Upload
+        isUploading: false,
+        uploadProgress: 0,
+        
+        // State
+        isProcessing: false,
+        completed: false,
+        streamLoaded: false,
+        streamUrl: '',
+        sessionId: null,
+        
+        handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('video/')) {
+                this.selectedFile = file;
+            }
+        },
+        
+        handleDrop(e) {
+            this.isDragging = false;
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('video/')) {
+                this.selectedFile = file;
+            }
+        },
+        
+        formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        },
+        
+        async startRecognition() {
+            if (!this.selectedFile || this.isUploading) return;
+            
+            this.isUploading = true;
+            this.uploadProgress = 0;
+            
+            // Step 1: Upload video
+            const formData = new FormData();
+            formData.append('video', this.selectedFile);
+            
+            try {
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        this.uploadProgress = Math.round((e.loaded / e.total) * 100);
+                    }
+                };
+                
+                xhr.onload = () => {
+                    this.isUploading = false;
+                    
+                    if (xhr.status === 200) {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            this.sessionId = data.session_id;
+                            console.log('Upload success, session:', this.sessionId);
+                            
+                            // Step 2: Start stream
+                            const params = new URLSearchParams({
+                                threshold: this.threshold,
+                                min_face_size: this.minFaceSize,
+                                frame_skip: this.frameSkip
+                            });
+                            
+                            this.streamUrl = `/recognition/stream/${this.sessionId}/?${params.toString()}`;
+                            this.isProcessing = true;
+                            this.completed = false;
+                            this.streamLoaded = false;
+                        } else {
+                            alert('Yükleme hatası: ' + data.error);
+                        }
+                    } else {
+                        alert('Yükleme başarısız oldu');
+                    }
+                };
+                
+                xhr.onerror = () => {
+                    this.isUploading = false;
+                    alert('Bağlantı hatası');
+                };
+                
+                xhr.open('POST', '{% url "core:recognition_upload" %}');
+                xhr.send(formData);
+                
+            } catch (error) {
+                this.isUploading = false;
+                alert('Hata: ' + error.message);
+            }
+        },
+        
+        handleStreamError(event) {
+            console.log('Stream error event:', event.type);
+            // Only mark as completed if stream actually loaded before
+            if (this.streamLoaded) {
+                console.log('Stream completed after loading');
+                this.completed = true;
+            } else {
+                console.log('Stream error before loading - might still be connecting');
+                // Retry could be added here if needed
+            }
+        },
+        
+        reset() {
+            this.selectedFile = null;
+            this.isProcessing = false;
+            this.completed = false;
+            this.streamLoaded = false;
+            this.streamUrl = '';
+            this.sessionId = null;
+        }
+    }
+}
+</script>
+{% endblock %}
