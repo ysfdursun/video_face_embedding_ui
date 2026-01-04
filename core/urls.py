@@ -33,4 +33,5 @@ urlpatterns = [
     path('recognition/', views.recognition_page, name='recognition_page'),
     path('recognition/upload/', views.recognition_upload, name='recognition_upload'),
     path('recognition/stream/<str:session_id>/', views.recognition_stream, name='recognition_stream'),
+    path('recognition/stream/movie/<str:movie_filename>/', views.stream_video_recognition, name='stream_video_recognition_existing'),
 ]

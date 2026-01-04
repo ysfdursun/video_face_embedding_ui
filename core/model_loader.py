@@ -23,18 +23,16 @@ def load_detector(det_size=None, det_thresh=None, providers=None):
         FaceAnalysis app ready for inference
     """
     det_size = det_size or Config.DETECTION_SIZE
-    det_thresh = det_thresh or Config.DETECTION_THRESHOLD
+    # Use STRICT threshold if available
+    det_thresh = det_thresh or getattr(Config, 'DETECTION_THRESHOLD_STRICT', Config.DETECTION_THRESHOLD)
     providers = providers or Config.PROVIDERS
     
     print(f"📦 Loading detector: {Config.DETECTION_MODEL}")
     
-    # Initialize FaceAnalysis with the detection model name
     app = FaceAnalysis(
         name=Config.DETECTION_MODEL,
-        providers=providers,
-        root=Config.get_insightface_root()
+        providers=providers
     )
-    # Prepare with specific size and threshold
     app.prepare(ctx_id=0, det_size=det_size, det_thresh=det_thresh)
     
     print(f"   ✓ Detection model loaded (size={det_size}, thresh={det_thresh})")
@@ -61,11 +59,16 @@ def load_recognizer(providers=None):
         print(f"   💡 Try running: python -c \"from insightface.app import FaceAnalysis; FaceAnalysis(name='buffalo_l')\"")
         return None
     
-    rec_model = get_model(model_path, providers=providers)
-    rec_model.prepare(ctx_id=0)
-    
-    print(f"   ✓ Recognition model loaded: {Config.RECOGNITION_MODEL_FILE}")
-    return rec_model
+    try:
+        rec_model = get_model(model_path, providers=providers)
+        rec_model.prepare(ctx_id=0)
+        print(f"   ✓ Recognition model loaded: {Config.RECOGNITION_MODEL_FILE}")
+        return rec_model
+    except Exception as e:
+        print(f"   ❌ Error loading recognizer model: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
 
 def load_all_models(det_size=None, det_thresh=None, providers=None):

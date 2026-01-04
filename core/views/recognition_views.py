@@ -3,23 +3,23 @@
 Recognition Views - Video Face Recognition Page
 """
 import os
-import tempfile
 import uuid
 from django.conf import settings
 from django.shortcuts import render
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from core.services.recognition_service import (
-    process_recognition_stream,
-    get_identities_count
-)
+# Import our new Robust Recognizer
+from core.face_recognizer import VideoFaceRecognizer
+from core.models import FaceGroup
 
-# Temp file storage (in-memory reference for cleanup)
-_temp_files = {}
+# Helper to get identity count
+def get_identities_count():
+    # Count groups that have a name and a representative embedding
+    return FaceGroup.objects.exclude(name='').count()
 
 def recognition_page(request):
-    """Render the recognition page."""
+    """Render the premium recognition dashboard."""
     return render(request, 'core/recognition.html', {
         'identities_count': get_identities_count()
     })
@@ -28,6 +28,7 @@ def recognition_page(request):
 def recognition_upload(request):
     """
     Handle video upload. Save to temp file and return a session ID.
+    The temp file will be deleted after streaming logic cleans it up.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'POST required'}, status=405)
@@ -48,26 +49,31 @@ def recognition_upload(request):
     
     print(f"📤 Uploading video to: {temp_path}")
     
-    with open(temp_path, 'wb') as f:
-        for chunk in video_file.chunks():
-            f.write(chunk)
-    
-    file_size = os.path.getsize(temp_path)
-    print(f"✅ Upload complete: {file_size} bytes")
-    
-    return JsonResponse({
-        'success': True,
-        'session_id': session_id,
-        'filename': video_file.name
-    })
+    try:
+        with open(temp_path, 'wb') as f:
+            for chunk in video_file.chunks():
+                f.write(chunk)
+        
+        file_size = os.path.getsize(temp_path)
+        print(f"✅ Upload complete: {file_size} bytes")
+        
+        return JsonResponse({
+            'success': True,
+            'session_id': session_id,
+            'filename': video_file.name
+        })
+    except Exception as e:
+        print(f"❌ Upload error: {e}")
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 def recognition_stream(request, session_id):
     """
     Stream recognition for uploaded video by session ID.
+    Uses VideoFaceRecognizer with Temporal Smoothing.
     """
     print(f"🎬 Stream request for session: {session_id}")
     
-    # Find temp file by session_id (scan temp directory)
+    # Find temp file by session_id
     temp_dir = os.path.join(settings.BASE_DIR, 'temp_recognition')
     temp_path = None
     
@@ -78,26 +84,56 @@ def recognition_stream(request, session_id):
                 break
     
     if not temp_path or not os.path.exists(temp_path):
-        print(f"❌ Session not found: {session_id}")
-        print(f"   Temp dir contents: {os.listdir(temp_dir) if os.path.exists(temp_dir) else 'N/A'}")
         return JsonResponse({'error': 'Session not found'}, status=404)
-    
-    print(f"✅ Found temp file: {temp_path}")
     
     # Get settings from query params
     threshold = float(request.GET.get('threshold', 0.27))
-    min_face_size = int(request.GET.get('min_face_size', 30))
-    frame_skip = int(request.GET.get('frame_skip', 5))
+    buffer_size = int(request.GET.get('buffer_size', 10)) # Temporal buffer size
     
     def stream_with_cleanup():
+        import cv2
+        import numpy as np
+        
         try:
-            for frame in process_recognition_stream(
-                temp_path,
+            # Instantiate Robust Recognizer
+            recognizer = VideoFaceRecognizer(
                 threshold=threshold,
-                min_face_size=min_face_size,
-                frame_skip=frame_skip
-            ):
-                yield frame
+                temporal_buffer_size=buffer_size
+            )
+            
+            # Stream frames
+            yield from recognizer.process_stream(temp_path)
+            
+        except Exception as e:
+            print(f"Stream Error: {e}")
+            import traceback
+            traceback.print_exc()
+            
+            # Generate Error Frame
+            error_frame = np.zeros((480, 640, 3), dtype=np.uint8)
+            
+            # Draw multiple lines of text
+            err_msg = str(e)
+            y0, dy = 100, 30
+            
+            cv2.putText(error_frame, "SYSTEM ERROR:", (50, 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            
+            # Split long messages
+            for i, line in enumerate(err_msg.split(',')):
+                y = y0 + i * dy
+                if y > 450: break
+                cv2.putText(error_frame, line.strip(), (50, y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1)
+            
+            ret, buffer = cv2.imencode('.jpg', error_frame)
+            if ret:
+                # Yield error frame multiple times to ensure it's displayed
+                frame_data = (b'--frame\r\n'
+                              b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+                for _ in range(10):
+                    yield frame_data
+                    
         finally:
             # Cleanup temp file
             try:
@@ -109,29 +145,5 @@ def recognition_stream(request, session_id):
     
     return StreamingHttpResponse(
         stream_with_cleanup(),
-        content_type='multipart/x-mixed-replace; boundary=frame'
-    )
-
-def recognition_stream_existing(request, video_filename):
-    """Stream recognition for an existing video in media/videos."""
-    video_path = os.path.join(settings.MEDIA_ROOT, 'videos', video_filename)
-    
-    if not os.path.exists(video_path):
-        return JsonResponse({'error': 'Video not found'}, status=404)
-    
-    # Get settings from query params
-    threshold = float(request.GET.get('threshold', 0.27))
-    min_face_size = int(request.GET.get('min_face_size', 30))
-    frame_skip = int(request.GET.get('frame_skip', 5))
-    
-    stream = process_recognition_stream(
-        video_path,
-        threshold=threshold,
-        min_face_size=min_face_size,
-        frame_skip=frame_skip
-    )
-    
-    return StreamingHttpResponse(
-        stream,
         content_type='multipart/x-mixed-replace; boundary=frame'
     )

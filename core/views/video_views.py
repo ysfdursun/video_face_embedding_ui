@@ -96,3 +96,17 @@ def stream_video_processing(request, movie_filename):
         import traceback
         traceback.print_exc()
         return redirect('core:home')
+
+def stream_video_recognition(request, movie_filename):
+    """Runs the recognition stream."""
+    video_path = os.path.join(settings.MEDIA_ROOT, 'videos', movie_filename)
+    
+    try:
+        from core.face_recognizer import VideoFaceRecognizer
+        # Use default settings for existing videos since this view doesn't take params
+        recognizer = VideoFaceRecognizer(threshold=0.35, temporal_buffer_size=10)
+        stream = recognizer.process_stream(video_path)
+        return StreamingHttpResponse(stream, content_type='multipart/x-mixed-replace; boundary=frame')
+    except Exception as e:
+        print(f"Recognition stream error: {e}")
+        return redirect('core:home')

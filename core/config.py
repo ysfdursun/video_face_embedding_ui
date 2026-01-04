@@ -1,5 +1,7 @@
 """
-Centralized Configuration (from Demo + Django Integration)
+Centralized Configuration
+=========================
+All configurable parameters for the face recognition pipeline.
 """
 
 import os
@@ -12,9 +14,18 @@ class Config:
     # ==========================================
     # PATHS
     # ==========================================
-    # Will be set from Django settings
-    BASE_DIR = None
-    OUTPUT_DIR = None
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    OUTPUT_DIR = os.path.join(BASE_DIR, "outputs")
+    
+    # Default dataset (can be overridden)
+    # Using a safe relative path or environment variable is better in production, 
+    # but keeping user's preference here.
+    DATASET_DIR = r"C:\Users\hamza\OneDrive\Belgeler\GitHub\celebrity-face-recognition-project\Merged_Celebrity_Actors"
+    
+    # Output subdirectories
+    CROPPED_FACES_DIR = os.path.join(OUTPUT_DIR, "cropped_faces")
+    EMBEDDINGS_DIR = os.path.join(OUTPUT_DIR, "embeddings")
+    ANALYSIS_DIR = os.path.join(OUTPUT_DIR, "analysis")
     
     # ==========================================
     # MODEL SETTINGS
@@ -23,7 +34,7 @@ class Config:
     # Detection model (buffalo_sc = SCRFD 2.5G)
     DETECTION_MODEL = "buffalo_sc"
     DETECTION_SIZE = (640, 640)
-    DETECTION_THRESHOLD = 0.65  # Stricter than Django default (0.5)
+    DETECTION_THRESHOLD = 0.35
     
     # Recognition model (buffalo_l = w600k_r50)
     RECOGNITION_MODEL = "buffalo_l"
@@ -52,22 +63,25 @@ class Config:
     # ==========================================
     
     # Blur - minimum sharpness (Laplacian variance)
-    MIN_BLUR_SCORE = 80.0  # Stricter than Django (30.0)
+    MIN_BLUR_SCORE = 80.0         # Increased from 50 - filters blurry
     
     # Brightness range
     MIN_BRIGHTNESS = 30
     MAX_BRIGHTNESS = 230
     
     # Face size
-    MIN_FACE_SIZE = 50  # More lenient than Django (80)
+    MIN_FACE_SIZE = 50            # Increased from 40 - filters tiny faces
+    
+    # Detection confidence
+    DETECTION_THRESHOLD_STRICT = 0.65    # Increased - filters false positives (renamed to avoid conflict)
     
     # Pose filtering
-    MAX_POSE_RATIO = 2.0  # Filter extreme poses
+    MAX_POSE_RATIO = 2.0          # Filter extreme poses (profile views)
     
     # Landmark quality
-    ENABLE_LANDMARK_CHECK = True
-    MIN_EYE_DISTANCE_RATIO = 0.2
-    MAX_EYE_DISTANCE_RATIO = 0.7
+    ENABLE_LANDMARK_CHECK = True   # Check landmark positions
+    MIN_EYE_DISTANCE_RATIO = 0.2   # Min eye distance / face width
+    MAX_EYE_DISTANCE_RATIO = 0.7   # Max eye distance / face width
     
     # ==========================================
     # OUTLIER DETECTION
@@ -80,9 +94,9 @@ class Config:
     # VIDEO PROCESSING
     # ==========================================
     
-    VIDEO_FRAME_STRIDE = 3  # Process every N frames (Django: 10)
-    GROUPING_THRESHOLD = 0.60  # Stricter than Django (0.45)
-    RECOGNITION_THRESHOLD = 0.35
+    VIDEO_FRAME_STRIDE = 3        # Process every N frames
+    RECOGNITION_THRESHOLD = 0.35  # Cosine similarity threshold
+    MIN_QUALITY_SCORE = 0.3       # For recognition filtering
     
     # ==========================================
     # ENHANCEMENT
@@ -94,46 +108,15 @@ class Config:
     GAMMA_CORRECTION = 1.5
     
     # ==========================================
-    # DJANGO INTEGRATION
+    # METHODS
     # ==========================================
     
     @classmethod
-    def sync_from_django_settings(cls):
-        """Load and override settings from Django"""
-        try:
-            from django.conf import settings as django_settings
-            
-            # Set paths from Django
-            cls.BASE_DIR = django_settings.BASE_DIR
-            cls.OUTPUT_DIR = os.path.join(django_settings.MEDIA_ROOT, "demo_outputs")
-            
-            # Try to load from FaceRecognitionSettings model
-            try:
-                from core.models import FaceRecognitionSettings
-                db_settings = FaceRecognitionSettings.get_settings()
-                
-                # Override thresholds if DB values exist
-                if db_settings.detection_threshold:
-                    cls.DETECTION_THRESHOLD = db_settings.detection_threshold
-                if db_settings.grouping_threshold:
-                    cls.GROUPING_THRESHOLD = db_settings.grouping_threshold
-                if db_settings.min_face_size:
-                    cls.MIN_FACE_SIZE = db_settings.min_face_size
-                if db_settings.frame_skip_extract:
-                    cls.VIDEO_FRAME_STRIDE = db_settings.frame_skip_extract
-                
-                # Map quality_threshold to blur equivalent
-                if db_settings.quality_threshold:
-                    # quality_threshold is 0-1, MIN_BLUR_SCORE is raw variance
-                    # Keep MIN_BLUR_SCORE from demo (80.0) as it's better
-                    pass
-                
-                print(f"✓ Config synced from Django DB")
-            except Exception as e:
-                print(f"⚠ Using demo config defaults: {e}")
-        
-        except Exception as e:
-            print(f"⚠ Django settings not available: {e}")
+    def ensure_dirs(cls):
+        """Create all output directories if they don't exist"""
+        for dir_path in [cls.OUTPUT_DIR, cls.CROPPED_FACES_DIR, 
+                         cls.EMBEDDINGS_DIR, cls.ANALYSIS_DIR]:
+            os.makedirs(dir_path, exist_ok=True)
     
     @classmethod
     def get_insightface_root(cls):
