@@ -73,7 +73,7 @@ class Config:
     MIN_FACE_SIZE = 50            # Increased from 40 - filters tiny faces
     
     # Detection confidence
-    DETECTION_THRESHOLD_STRICT = 0.65    # Increased - filters false positives (renamed to avoid conflict)
+    DETECTION_THRESHOLD = 0.65    # Increased - filters false positives
     
     # Pose filtering
     MAX_POSE_RATIO = 2.0          # Filter extreme poses (profile views)

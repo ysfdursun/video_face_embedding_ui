@@ -226,11 +226,18 @@
                     <div class="absolute bottom-2 right-2 flex gap-2">
                         {% if group.avg_quality > 0 %}
                         <!-- Quality Badge -->
-                        <div class="text-xs px-2 py-1 rounded-md backdrop-blur-sm font-semibold border
-                            {% if group.avg_quality >= 0.7 %} bg-blue-500/80 text-white border-blue-400
-                            {% elif group.avg_quality >= 0.5 %} bg-cyan-500/80 text-white border-cyan-400
-                            {% else %} bg-slate-500/80 text-white border-slate-400 {% endif %}">
-                            Q:{{ group.avg_quality|floatformat:2 }}
+                        <div class="text-xs px-2 py-1 rounded-md backdrop-blur-sm font-semibold border flex items-center gap-1
+                            {% if group.avg_quality >= 0.8 %} bg-emerald-500/90 text-white border-emerald-400
+                            {% elif group.avg_quality >= 0.6 %} bg-blue-500/90 text-white border-blue-400
+                            {% elif group.avg_quality >= 0.4 %} bg-yellow-500/90 text-white border-yellow-400
+                            {% else %} bg-red-500/90 text-white border-red-400 {% endif %}"
+                            title="Kalite Skoru: {{ group.avg_quality|default:0 }}">
+                            
+                            {% if group.avg_quality >= 0.8 %}<i class="bi bi-stars"></i> Mükemmel
+                            {% elif group.avg_quality >= 0.6 %}<i class="bi bi-hand-thumbs-up-fill"></i> İyi
+                            {% elif group.avg_quality >= 0.4 %}<i class="bi bi-check"></i> Orta
+                            {% else %}<i class="bi bi-exclamation-triangle-fill"></i> Düşük{% endif %}
+                            <span class="opacity-80 text-[10px]">({{ group.avg_quality|floatformat:2 }})</span>
                         </div>
                         {% endif %}
 

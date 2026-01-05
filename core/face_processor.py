@@ -26,6 +26,7 @@ from core.config import Config
 from core.model_loader import load_detector, load_recognizer
 from core.utils.demo_utils import AutoEnhancer, PoseAnalyzer, save_image
 from core.utils.file_utils import get_safe_filename
+from core.utils.quality import calculate_face_quality
 from core.models import FaceGroup as DBFaceGroup, Movie
 
 class FaceGroupHelper:
@@ -138,8 +139,18 @@ class VideoFaceExtractor:
         self.groups = [] # List of FaceGroupHelper
         self.stats = defaultdict(int)
 
-    def check_quality(self, face, aligned_face, brightness):
+    def check_quality(self, face, aligned_face, brightness, frame_wh=None):
         """Check if face passes quality thresholds."""
+        # Edge/Border Check (Prevent half-faces)
+        if frame_wh is not None:
+             w, h = frame_wh
+             bbox = face.bbox
+             margin = 10 # pixels
+             # Check if too close to any edge
+             if (bbox[0] < margin or bbox[1] < margin or 
+                 bbox[2] > w - margin or bbox[3] > h - margin):
+                 return False, "edge_face", 0.0
+
         # Detection score check
         if face.det_score < Config.DETECTION_THRESHOLD:
             return False, f"low_det_score ({face.det_score:.3f})", 0.0
@@ -166,8 +177,8 @@ class VideoFaceExtractor:
         if brightness > Config.MAX_BRIGHTNESS:
             return False, f"too_bright ({brightness:.1f})", 0.0
             
-        # Calculate composite score
-        quality_score = (face.det_score * 30) + (min(blur_score, 500) / 500 * 30) + 20
+        # Calculate composite score (Unified 0-1)
+        quality_score = calculate_face_quality(aligned_face, face.det_score, face.kps)
         return True, "passed", quality_score
 
     def align_face(self, img, landmarks):
@@ -312,8 +323,9 @@ class VideoFaceExtractor:
                             
                         # Quality Check
                         if self.enable_quality_filter:
-                            passed, reason, quality_score = self.check_quality(face, aligned, brightness)
-                            if not passed:
+                             h, w = frame.shape[:2]
+                             passed, reason, quality_score = self.check_quality(face, aligned, brightness, frame_wh=(w, h))
+                             if not passed:
                                 self.stats['quality_fail'] += 1
                                 # Draw rejection box
                                 bbox = face.bbox.astype(int)
@@ -409,7 +421,7 @@ class VideoFaceExtractor:
         else:
             cache.set(cache_key, "completed", timeout=3600) # Still complete even if empty
 
-def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
+def process_and_extract_faces_stream(video_path, movie_title, group_faces=True, duplicate_threshold=None):
     """
     Main entry point for Django View.
     Wraps the Robust VideoFaceExtractor.
@@ -418,8 +430,12 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
     cache_key = f"processing_status_{safe_title}"
     cache.set(cache_key, "running", timeout=3600)
     
+    # Update Config if provided
+    if duplicate_threshold is not None:
+        Config.DUPLICATE_THRESHOLD = float(duplicate_threshold)
+    
     # 1. Setup Models & DB
-    # Ensure movie exists
+    # ... (Rest of lookup logic) ...
     # ROBUST LOOKUP: Check if a movie with this safe title already exists in DB (even if original title had spaces)
     movie_obj = Movie.objects.filter(title=movie_title).first()
     
@@ -433,9 +449,6 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
     
     if not movie_obj:
         # If still not found, create one.
-        # Prefer the provided movie_title (which might have underscores if it came from filename, 
-        # but if it came from DB selection it should be correct).
-        # However, to respect the user's wish to AVOID automatic underscore conversion of new entries if possible:
         movie_obj = Movie.objects.create(title=movie_title)
     
     # Output dir
@@ -448,9 +461,6 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
         except:
             pass
             
-    # 2. Synch Config
-    # Config.sync_from_django_settings()
-    
     # 3. Instantiate Extractor
     extractor = VideoFaceExtractor(
         output_dir=output_dir,

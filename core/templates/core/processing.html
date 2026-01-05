@@ -26,8 +26,24 @@
         <div class="p-8 text-center" x-data="processingMonitor()">
             <!-- Processing State -->
             <div x-show="!completed" class="space-y-6">
+                <!-- Sensitivity Controls -->
+                <div class="mb-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">
+                        Benzerlik Filtresi (Duplicate Threshold): <span x-text="dupThreshold"></span>
+                    </label>
+                    <input type="range" min="0.80" max="0.99" step="0.01" 
+                           x-model="dupThreshold"
+                           @change="updateStream()"
+                           class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                    <div class="flex justify-between text-xs text-slate-500 mt-1">
+                        <span>Daha Az (0.80)</span>
+                        <span>Varsayılan (0.95)</span>
+                        <span>Daha Çok (0.99)</span>
+                    </div>
+                </div>
+
                 <img id="video-stream" 
-                     src="{% url 'core:stream_video_processing' movie_filename %}" 
+                     :src="streamUrl" 
                      @error="handleStreamEnd()"
                      class="w-full rounded-xl border-4 border-slate-100 shadow-inner bg-black aspect-video object-contain">
                 
@@ -64,10 +80,19 @@
 
 <script>
 function processingMonitor() {
-    return {
+        return {
         completed: false,
         redirectTimer: null,
         showFailsafe: false,
+        dupThreshold: 0.95,
+        streamUrl: "{% url 'core:stream_video_processing' movie_filename %}",
+
+        updateStream() {
+            // Append threshold param
+            const baseUrl = "{% url 'core:stream_video_processing' movie_filename %}";
+            this.streamUrl = `${baseUrl}?dup_threshold=${this.dupThreshold}`;
+            console.log("Stream updated:", this.streamUrl);
+        },
 
         init() {
             // Backup poller in case onerror fails (some browsers keep waiting forever)

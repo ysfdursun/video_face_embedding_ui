@@ -88,8 +88,17 @@ def stream_video_processing(request, movie_filename):
     movie_title = os.path.splitext(movie_filename)[0]
 
     try:
+        # Get threshold from request
+        dup_threshold = request.GET.get('dup_threshold')
+        print(f"Starting stream for {movie_title} with dup_thresh={dup_threshold}")
+        
         # UNIFIED PIPELINE: Extract + Group aynı anda (1 pass)
-        stream = process_and_extract_faces_stream(video_path, movie_title, group_faces=True)
+        stream = process_and_extract_faces_stream(
+            video_path, 
+            movie_title, 
+            group_faces=True,
+            duplicate_threshold=dup_threshold
+        )
         return StreamingHttpResponse(stream, content_type='multipart/x-mixed-replace; boundary=frame')
     except Exception as e:
         print(f"Stream error: {e}")

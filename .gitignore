@@ -8,7 +8,7 @@ env/
 
 # ignore .env 
 .env
-not_django_project_demo/
+# not_django_project_demo/
 # ignore django_cache folder
 django_cache/
 

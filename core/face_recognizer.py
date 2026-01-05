@@ -34,20 +34,21 @@ class VideoFaceRecognizer:
     Real-time face recognition from video.
     """
     
-    def __init__(self, threshold=None, temporal_buffer_size=20):
+    def __init__(self, threshold=None, temporal_buffer_size=20, target_identities=None):
         """
         Initialize recognizer.
         """
         self.threshold = threshold or Config.RECOGNITION_THRESHOLD
         self.temporal_buffer_size = temporal_buffer_size
+        self.target_identities = target_identities
         
         print("\n" + "="*60)
         print("🎬 VIDEO FACE RECOGNIZER (Pickle Mode)")
+        if self.target_identities:
+            print(f"🎯 Context Active: Restricting search to {len(self.target_identities)} cast members.")
         print("="*60)
         
         # Load embeddings database from 'avg_embeddings.pkl'
-        # Can be absolute or relative path. User said: "veri tabanı bu : avg_embeddings.pkl"
-        # We assume it's in the project root or we can look for it.
         candidates = [
             'avg_embeddings.pkl',
             os.path.join(Config.BASE_DIR, 'avg_embeddings.pkl'),
@@ -61,8 +62,15 @@ class VideoFaceRecognizer:
                 print(f"📂 Loading embeddings from: {path}")
                 try:
                     with open(path, 'rb') as f:
-                        self.database = pickle.load(f)
-                    print(f"   ✓ Loaded {len(self.database)} persons from pickle.")
+                        full_db = pickle.load(f)
+                        
+                    # Filter if target identities are provided
+                    if self.target_identities:
+                        self.database = {k: v for k, v in full_db.items() if k in self.target_identities}
+                        print(f"   ✓ Loaded {len(self.database)} persons (filtered from {len(full_db)})")
+                    else:
+                        self.database = full_db
+                        print(f"   ✓ Loaded {len(self.database)} persons from pickle.")
                     loaded = True
                     break
                 except Exception as e:
@@ -204,7 +212,9 @@ class VideoFaceRecognizer:
         cv2.putText(frame, label, (x1, y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255), 2)
         for kp in face.kps: cv2.circle(frame, (int(kp[0]), int(kp[1])), 2, color, -1)
 
-    def process_stream(self, video_path):
+    def process_stream(self, video_path, session_id=None):
+        from django.core.cache import cache # Lazy import to keep class portable if needed
+        
         stride = Config.VIDEO_FRAME_STRIDE
         cap = cv2.VideoCapture(video_path)
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -215,11 +225,21 @@ class VideoFaceRecognizer:
         self.face_trackers = {}
         self.next_face_id = 0
         
+        # Initial status
+        if session_id:
+            cache.set(f"rec_stats_{session_id}", {
+                'status': 'running', 
+                'progress': 0, 
+                'stats': {}
+            }, timeout=300)
+        
         while True:
             ret, frame = cap.read()
             if not ret: break
             frame_count += 1
             display_frame = frame.copy()
+            
+            # --- Detection & Recognition ---
             if frame_count % stride == 1:
                 faces = self.detector.get(frame)
                 processed_count += 1
@@ -235,10 +255,34 @@ class VideoFaceRecognizer:
                     smoothed = self._get_smoothed_embedding(face_id)
                     name, score = self.match_face(smoothed if smoothed is not None else embedding)
                     current_results.append((face, name, score))
+                    
+                    # Update stats
                     self.stats[name] += 1
+                    
                 last_results = current_results
+                
+                # Update Cache frequently (every processed frame)
+                if session_id:
+                    progress = int((frame_count / total_frames) * 100) if total_frames > 0 else 0
+                    
+                    # Debug print to ensure stats are collected
+                    if processed_count % 10 == 0:
+                        print(f"📊 Stats Sync [Session {session_id}]: {len(self.stats)} actors found.")
+                    
+                    # Sort stats by count desc
+                    sorted_stats = dict(sorted(self.stats.items(), key=lambda item: item[1], reverse=True))
+                    
+                    cache.set(f"rec_stats_{session_id}", {
+                        'status': 'running', 
+                        'progress': progress, 
+                        'stats': sorted_stats,
+                        'fps': frame_count / (time.time() - start_time) if (time.time() - start_time) > 0 else 0
+                    }, timeout=60)
+                    
             else:
                 current_results = last_results
+            
+            # Draw
             for res in current_results: self.draw_results(display_frame, *res)
             
             elapsed = time.time() - start_time
@@ -247,4 +291,14 @@ class VideoFaceRecognizer:
             
             ret, buffer = cv2.imencode('.jpg', display_frame)
             if ret: yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            
         cap.release()
+        
+        # Final status update
+        if session_id:
+            sorted_stats = dict(sorted(self.stats.items(), key=lambda item: item[1], reverse=True))
+            cache.set(f"rec_stats_{session_id}", {
+                'status': 'completed', 
+                'progress': 100, 
+                'stats': sorted_stats
+            }, timeout=300)

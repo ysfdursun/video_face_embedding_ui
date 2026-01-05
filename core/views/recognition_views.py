@@ -34,6 +34,8 @@ def recognition_upload(request):
         return JsonResponse({'error': 'POST required'}, status=405)
     
     video_file = request.FILES.get('video')
+    movie_id = request.POST.get('movie_id') # Optional movie context
+    
     if not video_file:
         return JsonResponse({'error': 'No video file'}, status=400)
     
@@ -47,7 +49,7 @@ def recognition_upload(request):
     
     temp_path = os.path.join(temp_dir, f"{session_id}{suffix}")
     
-    print(f"📤 Uploading video to: {temp_path}")
+    print(f"📤 Uploading video to: {temp_path} (Context Movie ID: {movie_id})")
     
     try:
         with open(temp_path, 'wb') as f:
@@ -60,7 +62,8 @@ def recognition_upload(request):
         return JsonResponse({
             'success': True,
             'session_id': session_id,
-            'filename': video_file.name
+            'filename': video_file.name,
+            'movie_id': movie_id # Pass it back so frontend can pass it to stream
         })
     except Exception as e:
         print(f"❌ Upload error: {e}")
@@ -89,20 +92,31 @@ def recognition_stream(request, session_id):
     # Get settings from query params
     threshold = float(request.GET.get('threshold', 0.27))
     buffer_size = int(request.GET.get('buffer_size', 10)) # Temporal buffer size
+    movie_id = request.GET.get('movie_id') # Optional movie ID from upload step
     
     def stream_with_cleanup():
         import cv2
         import numpy as np
         
+        target_identities = None
+        if movie_id and movie_id != 'null':
+            from core.models import MovieCast
+            # Fetch cast names
+            cast_names = list(MovieCast.objects.filter(movie_id=movie_id).values_list('actor__name', flat=True))
+            if cast_names:
+                target_identities = cast_names
+                print(f"🎯 Movie Context Loaded: {len(cast_names)} cast members found.")
+        
         try:
             # Instantiate Robust Recognizer
             recognizer = VideoFaceRecognizer(
                 threshold=threshold,
-                temporal_buffer_size=buffer_size
+                temporal_buffer_size=buffer_size,
+                target_identities=target_identities
             )
             
             # Stream frames
-            yield from recognizer.process_stream(temp_path)
+            yield from recognizer.process_stream(temp_path, session_id=session_id)
             
         except Exception as e:
             print(f"Stream Error: {e}")
@@ -147,3 +161,33 @@ def recognition_stream(request, session_id):
         stream_with_cleanup(),
         content_type='multipart/x-mixed-replace; boundary=frame'
     )
+
+def api_recognition_status(request):
+    """
+    API to poll recognition status and stats.
+    """
+    session_id = request.GET.get('session_id')
+    if not session_id:
+        return JsonResponse({'error': 'No session_id'}, status=400)
+        
+    from django.core.cache import cache
+    data = cache.get(f"rec_stats_{session_id}")
+    
+    if data:
+        return JsonResponse(data)
+    else:
+        return JsonResponse({'status': 'waiting', 'stats': {}})
+
+def api_search_movies(request):
+    """
+    API for movie autocomplete.
+    """
+    query = request.GET.get('q', '').strip()
+    if len(query) < 2:
+        return JsonResponse([], safe=False)
+        
+    from core.models import Movie
+    movies = Movie.objects.filter(title__icontains=query)[:10]
+    
+    results = [{'id': m.id, 'title': m.title} for m in movies]
+    return JsonResponse(results, safe=False)

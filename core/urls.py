@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/actor/delete/', views.ActorDeleteAPI.as_view(), name='api_delete_actor'),
     path('api/cast/manage/', views.CastManageAPI.as_view(), name='api_cast_manage'),
     path('api/actors/search/', views.ActorSearchAPI.as_view(), name='api_actor_search'),
+    path('api/movies/search/', views.api_search_movies, name='api_search_movies'),
     path('api/processing-status/', views.ProcessingStatusAPI.as_view(), name='api_processing_status'),
     path('api/profile/update/', views.update_profile_photo, name='update_profile_photo'),
     path('api/profile/remove/', views.remove_profile_photo, name='remove_profile_photo'),
@@ -33,5 +34,6 @@ urlpatterns = [
     path('recognition/', views.recognition_page, name='recognition_page'),
     path('recognition/upload/', views.recognition_upload, name='recognition_upload'),
     path('recognition/stream/<str:session_id>/', views.recognition_stream, name='recognition_stream'),
+    path('recognition/status/', views.api_recognition_status, name='api_recognition_status'),
     path('recognition/stream/movie/<str:movie_filename>/', views.stream_video_recognition, name='stream_video_recognition_existing'),
 ]
