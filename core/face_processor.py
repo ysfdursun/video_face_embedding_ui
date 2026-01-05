@@ -88,6 +88,19 @@ class FaceGroupHelper:
             self.total_sim += metadata['sim_score']
             self.sim_count += 1
             
+    def is_duplicate(self, embedding, threshold=0.92):
+        """
+        Check if the new embedding is too similar to the LAST added face.
+        We only check the last one because streams usually produce sequential duplicates.
+        """
+        if not self.embeddings:
+            return False
+            
+        # Compare with the absolute last face added
+        last_embedding = self.embeddings[-1]
+        sim = np.dot(embedding, last_embedding)
+        return sim >= threshold
+
     def get_centroid(self):
         """Get average embedding of the group."""
         if not self.embeddings:
@@ -326,7 +339,17 @@ class VideoFaceExtractor:
                             self.groups.append(FaceGroupHelper(group_idx))
                             self.stats['groups_new'] += 1
                             sim_score = 1.0
-                        
+                        else:
+                            # Deduplication Check (Only if getting added to existing group)
+                            # Default to 0.92 if not in Config (though we should add it)
+                            dup_thresh = getattr(Config, 'DUPLICATE_THRESHOLD', 0.92)
+                            if self.groups[group_idx].is_duplicate(embedding, threshold=dup_thresh):
+                                self.stats['rejected_duplicate'] += 1
+                                # Visualize as Duplicate
+                                bbox = face.bbox.astype(int)
+                                cv2.rectangle(display_frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (100, 100, 100), 2)
+                                continue
+
                         # Calculate blur score
                         gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
                         blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
@@ -397,7 +420,23 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
     
     # 1. Setup Models & DB
     # Ensure movie exists
-    movie_obj, _ = Movie.objects.get_or_create(title=safe_title)
+    # ROBUST LOOKUP: Check if a movie with this safe title already exists in DB (even if original title had spaces)
+    movie_obj = Movie.objects.filter(title=movie_title).first()
+    
+    if not movie_obj:
+        # Check if any existing movie's safe title matches our safe_title
+        # This prevents "12_Years_a_Slave" from being created if "12 Years a Slave" exists
+        for m in Movie.objects.all():
+            if get_safe_filename(m.title) == safe_title:
+                movie_obj = m
+                break
+    
+    if not movie_obj:
+        # If still not found, create one.
+        # Prefer the provided movie_title (which might have underscores if it came from filename, 
+        # but if it came from DB selection it should be correct).
+        # However, to respect the user's wish to AVOID automatic underscore conversion of new entries if possible:
+        movie_obj = Movie.objects.create(title=movie_title)
     
     # Output dir
     output_dir = os.path.join(settings.MEDIA_ROOT, 'grouped_faces', safe_title)

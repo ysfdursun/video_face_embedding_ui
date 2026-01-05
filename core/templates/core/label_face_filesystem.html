@@ -158,6 +158,11 @@
                 <div x-show="selectedGroups.length > 0" x-transition.opacity class="flex items-center gap-2">
                     <div class="h-6 w-px bg-slate-300 mx-2"></div>
                     <span class="text-sm font-semibold text-slate-700" x-text="selectedGroups.length + ' seçildi'"></span>
+                    
+                    <button @click="cleanupDuplicates()" class="px-3 py-2 bg-orange-100 text-orange-700 hover:bg-orange-200 rounded-lg text-sm font-semibold transition-colors" title="Seçili gruplardaki görsel ikizlerini temizle">
+                         <i class="bi bi-magic mr-1"></i> Temizle
+                    </button>
+
                     <button @click="deleteBulk()" class="px-4 py-2 bg-red-100 text-red-700 hover:bg-red-200 rounded-lg text-sm font-semibold transition-colors">
                         <i class="bi bi-trash3-fill mr-1"></i> Tümünü Sil
                     </button>
@@ -450,6 +455,36 @@ function labelingWorkstation() {
                      container.style.opacity = '1';
                  }
              });
+        },
+
+        cleanupDuplicates() {
+            if (!confirm(this.selectedGroups.length + ' grup içindeki benzer kareleri (duplicate) temizlemek istiyor musunuz?')) return;
+            
+            this.selectedGroups.forEach(id => {
+                // Call backend
+                fetch(window.location.href, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        action: 'cleanup_duplicates',
+                        group_id: id,
+                        movie: this.movieTitle
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success && data.deleted_count > 0) {
+                        console.log(`Grup ${id}: ${data.deleted_count} silindi.`);
+                        // Optional: Update UI badge for this group
+                    }
+                });
+            });
+            alert("Temizlik işlemi başlatıldı. Sayfayı yenileyerek güncel sayıları görebilirsiniz.");
+            this.selectedGroups = [];
         },
 
         deleteBulk() {

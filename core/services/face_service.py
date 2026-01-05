@@ -3,6 +3,8 @@ import shutil
 import time
 from django.conf import settings
 from core.utils.file_utils import get_safe_filename
+import cv2
+import numpy as np
 
 def get_grouped_faces_dir():
     return os.path.join(settings.MEDIA_ROOT, 'grouped_faces')
@@ -465,3 +467,73 @@ def compare_embeddings(embedding1, embedding2):
         return 0.0
     
     return float(np.dot(embedding1, embedding2))
+
+def cleanup_duplicates_in_group(movie_name, group_id, threshold=0.92):
+    """
+    Remove visually identical faces in a group using image correlation.
+    """
+    group_path = os.path.join(get_grouped_faces_dir(), movie_name, group_id)
+    if not os.path.isdir(group_path):
+        return 0
+        
+    files = sorted([f for f in os.listdir(group_path) if f.endswith('.jpg')])
+    if len(files) < 2:
+        return 0
+        
+    deleted_count = 0
+    
+    # Initialize with first image
+    try:
+        last_img = cv2.imread(os.path.join(group_path, files[0]))
+        if last_img is None: return 0
+        last_gray = cv2.cvtColor(cv2.resize(last_img, (64, 64)), cv2.COLOR_BGR2GRAY)
+        
+        for i in range(1, len(files)):
+            curr_file = files[i]
+            curr_path = os.path.join(group_path, curr_file)
+            
+            curr_img = cv2.imread(curr_path)
+            if curr_img is None: continue
+            
+            curr_gray = cv2.cvtColor(cv2.resize(curr_img, (64, 64)), cv2.COLOR_BGR2GRAY)
+            
+            # Compare
+            res = cv2.matchTemplate(last_gray, curr_gray, cv2.TM_CCOEFF_NORMED)
+            similarity = res[0][0]
+            
+            if similarity > threshold:
+                try:
+                    os.remove(curr_path)
+                    deleted_count += 1
+                except: pass
+                # Don't update last_gray, continue searching for duplicates of it
+            else:
+                last_gray = curr_gray
+                
+        # Update DB Stats if anything changed
+        if deleted_count > 0:
+            from core.models import Movie, FaceGroup
+            try:
+                # Find movie
+                movie_obj = Movie.objects.filter(title=movie_name).first()
+                if not movie_obj:
+                     for m in Movie.objects.all():
+                        if get_safe_filename(m.title) == movie_name:
+                            movie_obj = m
+                            break
+                
+                if movie_obj:
+                    fg = FaceGroup.objects.filter(movie=movie_obj, group_id=group_id).first()
+                    if fg:
+                        remaining = len(files) - deleted_count
+                        fg.face_count = remaining
+                        fg.total_faces = remaining
+                        fg.save()
+            except Exception as e:
+                print(f"Error updating stats: {e}")
+                
+        return deleted_count
+        
+    except Exception as e:
+        print(f"Cleanup Error: {e}")
+        return 0

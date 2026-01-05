@@ -61,6 +61,11 @@ def label_all_faces(request):
                 return JsonResponse({'success': True})
             return JsonResponse({'success': False, 'message': 'Failed to discard'})
         
+        elif action == 'cleanup_duplicates':
+            # NEW: Cleanup duplicates in this group
+            deleted_count = face_service.cleanup_duplicates_in_group(selected_movie, group_id)
+            return JsonResponse({'success': True, 'deleted_count': deleted_count})
+        
         elif action == 'save':
             cast_name = data.get('assigned_cast_name')
             if cast_name:
