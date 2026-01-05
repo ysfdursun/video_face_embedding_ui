@@ -187,24 +187,34 @@
         <div x-show="state === 'STREAMING' || state === 'COMPLETED'" class="mt-8 w-full max-w-5xl mx-auto animate-fade-in-up">
             <h3 class="text-lg font-bold text-white mb-4 border-l-4 border-cyan-500 pl-3">Tespit Edilen Kişiler</h3>
             
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                <template x-for="(count, name) in stats" :key="name">
-                    <div class="bg-slate-800/50 border border-white/5 rounded-xl p-4 flex items-center justify-between hover:border-cyan-500/30 transition-colors">
-                        <div class="flex items-center gap-3">
-                            <div class="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-xs font-bold" x-text="name.substring(0,1).toUpperCase()"></div>
-                            <span class="font-medium text-slate-200 text-sm truncate max-w-[100px]" x-text="name"></span>
+            <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <template x-for="actor in actors" :key="actor.name">
+                    <div class="bg-slate-800/50 border border-white/5 rounded-2xl p-5 flex items-center justify-between hover:border-cyan-500/30 transition-colors">
+                        <div class="flex items-center gap-4">
+                            <!-- Image or Initials -->
+                            <div class="relative w-14 h-14">
+                                <template x-if="actor.image">
+                                    <img :src="actor.image" class="w-14 h-14 rounded-full object-cover border-2 border-slate-600">
+                                </template>
+                                <template x-if="!actor.image">
+                                    <div class="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-lg font-bold ring-2 ring-white/10" 
+                                         x-text="actor.name.substring(0,1).toUpperCase()"></div>
+                                </template>
+                            </div>
+                            
+                            <span class="font-bold text-slate-100 text-lg truncate max-w-[140px]" x-text="actor.name"></span>
                         </div>
-                        <span class="px-2 py-1 bg-slate-900 rounded text-xs font-mono text-cyan-400 border border-white/5" x-text="count"></span>
+                        <span class="px-3 py-1.5 bg-slate-900 rounded-lg text-sm font-mono text-cyan-400 border border-white/5 shadow-sm" x-text="actor.count"></span>
                     </div>
                 </template>
                 
                 <!-- No Detections Yet -->
-                <div x-show="Object.keys(stats).length === 0" class="col-span-full flex flex-col items-center justify-center py-12 px-4 bg-slate-800/30 rounded-2xl border border-white/5 border-dashed">
-                    <div class="animate-pulse w-12 h-12 rounded-full bg-slate-800 mb-3 flex items-center justify-center">
-                        <i class="bi bi-search text-cyan-500/50 text-xl"></i>
+                <div x-show="actors.length === 0" class="col-span-full flex flex-col items-center justify-center py-16 px-4 bg-slate-800/30 rounded-3xl border border-white/5 border-dashed">
+                    <div class="animate-pulse w-16 h-16 rounded-full bg-slate-800 mb-4 flex items-center justify-center">
+                        <i class="bi bi-search text-cyan-500/50 text-2xl"></i>
                     </div>
-                    <p class="text-slate-400 text-sm font-medium">Yüzler Taranıyor...</p>
-                    <p class="text-slate-500 text-xs mt-1">Henüz veritabanında kayıtlı bir kişi tespit edilmedi.</p>
+                    <p class="text-slate-400 text-base font-medium">Yüzler Taranıyor...</p>
+                    <p class="text-slate-500 text-sm mt-1">Henüz veritabanında kayıtlı bir kişi tespit edilmedi.</p>
                 </div>
             </div>
             
@@ -229,7 +239,8 @@ function recognitionStudio() {
         streamUrl: '',
         streamLoaded: false,
         sessionId: null, // Store active session ID
-        stats: {}, // Reactive stats object
+        stats: {}, // Deprecated: Raw stats dict
+        actors: [], // New: Enriched actor list
         
         // Movie Context
         searchQuery: '',
@@ -262,7 +273,6 @@ function recognitionStudio() {
         selectMovie(movie) {
             this.selectedMovie = movie;
             this.searchResults = [];
-            // Keep the query but lock it visually via the pill
         },
         
         clearSelection() {
@@ -334,7 +344,8 @@ function recognitionStudio() {
         startStream(sessionId) {
             this.sessionId = sessionId;
             this.state = 'STREAMING';
-            this.stats = {}; // Reset stats
+            this.stats = {}; 
+            this.actors = [];
             this.updateStream();
             
             // Start Polling Loop
@@ -350,11 +361,14 @@ function recognitionStudio() {
                 if (res.ok) {
                     const data = await res.json();
                     
-                    // FORCE UPDATE stats
-                    if (data.stats) {
-                        // Alpine might not react to deep object changes sometimes, so we replace it
-                        this.stats = { ...data.stats };
-                        console.log("Stats updated:", Object.keys(this.stats).length, "actors");
+                    // UPDATE actors list
+                    if (data.actors) {
+                        this.actors = data.actors;
+                        this.stats = data.stats; // Keep for fallback logic if needed
+                    } else if (data.stats) {
+                        // Fallback if backend doesn't send actors yet
+                        this.stats = data.stats;
+                        this.actors = Object.entries(data.stats).map(([name, count]) => ({name, count, image: null}));
                     }
                     
                     if (data.status === 'completed') {

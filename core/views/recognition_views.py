@@ -174,9 +174,39 @@ def api_recognition_status(request):
     data = cache.get(f"rec_stats_{session_id}")
     
     if data:
+        # Enrich with profile photos
+        stats_dict = data.get('stats', {})
+        enriched_actors = []
+        
+        for name, count in stats_dict.items():
+            image_url = None
+            
+            if name != "Unknown":
+                # 1. Try Selected_Profiles
+                profile_dir = os.path.join(settings.MEDIA_ROOT, 'Selected_Profiles', name)
+                if os.path.isdir(profile_dir):
+                    files = [f for f in os.listdir(profile_dir) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
+                    if files:
+                        image_url = f"{settings.MEDIA_URL}Selected_Profiles/{name}/{files[0]}"
+                
+                # 2. Fallback to labeled_faces
+                if not image_url:
+                    labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces', name)
+                    if os.path.isdir(labeled_dir):
+                        files = [f for f in os.listdir(labeled_dir) if f.lower().endswith(('.jpg', '.png', '.jpeg'))]
+                        if files:
+                            image_url = f"{settings.MEDIA_URL}labeled_faces/{name}/{files[0]}"
+
+            enriched_actors.append({
+                'name': name,
+                'count': count,
+                'image': image_url
+            })
+            
+        data['actors'] = enriched_actors
         return JsonResponse(data)
     else:
-        return JsonResponse({'status': 'waiting', 'stats': {}})
+        return JsonResponse({'status': 'waiting', 'stats': {}, 'actors': []})
 
 def api_search_movies(request):
     """
