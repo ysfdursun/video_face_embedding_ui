@@ -23,24 +23,41 @@
             <!-- Threshold -->
             <div class="flex flex-col">
                 <div class="flex justify-between mb-1">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Benzerlik Eşiği</span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Benzerlik</span>
                     <span class="text-[10px] font-mono text-cyan-400" x-text="config.threshold"></span>
                 </div>
                 <input type="range" x-model="config.threshold" min="0.1" max="0.9" step="0.01" 
-                       class="w-32 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                       class="w-24 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500">
             </div>
 
-            <!-- Separator -->
-            <div class="w-px h-8 bg-white/10"></div>
-
-            <!-- Buffer Size -->
+            <!-- Buffer -->
             <div class="flex flex-col">
                 <div class="flex justify-between mb-1">
-                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Smoothing Buffer</span>
-                    <span class="text-[10px] font-mono text-cyan-400" x-text="config.buffer + ' Frame'"></span>
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buffer</span>
+                    <span class="text-[10px] font-mono text-cyan-400" x-text="config.buffer"></span>
                 </div>
                 <input type="range" x-model="config.buffer" min="1" max="60" step="1" 
-                       class="w-32 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                       class="w-24 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+            </div>
+            
+            <!-- Min Size -->
+            <div class="flex flex-col">
+                <div class="flex justify-between mb-1">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Min Boyut</span>
+                    <span class="text-[10px] font-mono text-cyan-400" x-text="config.min_face_size + 'px'"></span>
+                </div>
+                <input type="range" x-model="config.min_face_size" min="20" max="200" step="10" 
+                       class="w-24 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+            </div>
+
+            <!-- Max Blur -->
+            <div class="flex flex-col">
+                <div class="flex justify-between mb-1">
+                    <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Max Blur</span>
+                    <span class="text-[10px] font-mono text-cyan-400" x-text="config.min_blur"></span>
+                </div>
+                <input type="range" x-model="config.min_blur" min="0" max="500" step="10" 
+                       class="w-24 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500">
             </div>
         </div>
         
@@ -249,7 +266,9 @@ function recognitionStudio() {
         
         config: {
             threshold: 0.27,
-            buffer: 60
+            buffer: 60,
+            min_face_size: 20,
+            min_blur: 0
         },
 
         init() {
@@ -392,7 +411,9 @@ function recognitionStudio() {
             
             const params = new URLSearchParams({
                 threshold: this.config.threshold,
-                buffer_size: this.config.buffer,
+                buffer: this.config.buffer,
+                min_face_size: this.config.min_face_size,
+                min_blur: this.config.min_blur,
                 t: Date.now() // Force reload
             });
             

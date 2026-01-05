@@ -108,11 +108,17 @@ def recognition_stream(request, session_id):
                 print(f"🎯 Movie Context Loaded: {len(cast_names)} cast members found.")
         
         try:
+            # New Manual Settings
+            min_blur = float(request.GET.get('min_blur', 0)) # Default 0 (Disabled)
+            min_face_size = int(request.GET.get('min_face_size', 20)) # Default 20
+            
             # Instantiate Robust Recognizer
             recognizer = VideoFaceRecognizer(
                 threshold=threshold,
                 temporal_buffer_size=buffer_size,
-                target_identities=target_identities
+                target_identities=target_identities,
+                min_blur=min_blur,
+                min_face_size=min_face_size
             )
             
             # Stream frames
@@ -181,7 +187,14 @@ def api_recognition_status(request):
         for name, count in stats_dict.items():
             image_url = None
             
-            if name != "Unknown":
+            if name == "Unknown":
+                image_url = None # Placeholder handled by frontend
+            elif name.startswith("Misafir"):
+                # 3. Check for specific session guest image
+                guest_path = os.path.join(settings.MEDIA_ROOT, 'temp_faces', session_id, f"{name}.jpg")
+                if os.path.exists(guest_path):
+                     image_url = f"{settings.MEDIA_URL}temp_faces/{session_id}/{name}.jpg"
+            else:
                 # 1. Try Selected_Profiles
                 profile_dir = os.path.join(settings.MEDIA_ROOT, 'Selected_Profiles', name)
                 if os.path.isdir(profile_dir):
@@ -200,8 +213,20 @@ def api_recognition_status(request):
             enriched_actors.append({
                 'name': name,
                 'count': count,
-                'image': image_url
+                'image': image_url,
+                'is_guest': name.startswith("Misafir"),
+                'is_unknown': name == "Unknown"
             })
+            
+        # Custom Sorting Logic
+        # 1. Known Actors (by count desc)
+        # 2. Guests (by count desc)
+        # 3. Unknown
+        enriched_actors.sort(key=lambda x: (
+            x['name'] == "Unknown", # Unknown last (True=1, False=0)
+            x['is_guest'],          # Guest second to last
+            -x['count']             # Higher count first
+        ))
             
         data['actors'] = enriched_actors
         return JsonResponse(data)

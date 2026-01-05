@@ -12,6 +12,7 @@ import numpy as np
 import time
 import pickle
 from collections import defaultdict, deque
+from django.conf import settings
 
 from core.config import Config
 from core.model_loader import load_detector, load_recognizer
@@ -34,7 +35,7 @@ class VideoFaceRecognizer:
     Real-time face recognition from video.
     """
     
-    def __init__(self, threshold=None, temporal_buffer_size=20, target_identities=None):
+    def __init__(self, threshold=None, temporal_buffer_size=20, target_identities=None, min_face_size=None, min_blur=None):
         """
         Initialize recognizer.
         """
@@ -42,35 +43,102 @@ class VideoFaceRecognizer:
         self.temporal_buffer_size = temporal_buffer_size
         self.target_identities = target_identities
         
+        # Dynamic Quality Settings
+        self.min_face_size = min_face_size if min_face_size is not None else Config.MIN_FACE_SIZE
+        self.min_blur = min_blur if min_blur is not None else Config.MIN_BLUR_SCORE
+        
         print("\n" + "="*60)
         print("🎬 VIDEO FACE RECOGNIZER (Pickle Mode)")
+        print(f"⚙️  Settings: Blur>{self.min_blur}, Size>{self.min_face_size}px")
         if self.target_identities:
             print(f"🎯 Context Active: Restricting search to {len(self.target_identities)} cast members.")
         print("="*60)
         
-        # Load embeddings database from 'avg_embeddings.pkl'
+        # Load embeddings database from 'embeddings_all.pkl' (Rich) or 'avg_embeddings.pkl' (Simple)
         candidates = [
+            'embeddings_all.pkl',
+            os.path.join(Config.BASE_DIR, 'embeddings_all.pkl'),
+            r'c:\Users\hamza\OneDrive\Belgeler\GitHub\video_face_embedding_ui\embeddings_all.pkl',
             'avg_embeddings.pkl',
-            os.path.join(Config.BASE_DIR, 'avg_embeddings.pkl'),
-            r'c:\Users\hamza\OneDrive\Belgeler\GitHub\video_face_embedding_ui\avg_embeddings.pkl'
+            os.path.join(Config.BASE_DIR, 'avg_embeddings.pkl')
         ]
         
         self.database = {}
         loaded = False
+        
         for path in candidates:
             if os.path.exists(path):
-                print(f"📂 Loading embeddings from: {path}")
+                print(f"📂 Loading database from: {path}")
                 try:
                     with open(path, 'rb') as f:
-                        full_db = pickle.load(f)
+                        raw_db = pickle.load(f)
                         
-                    # Filter if target identities are provided
+                    # Parse database (Handle both rich dict and simple dict)
+                    self.database = {}
+                    count_templates = 0
+                    
+                    # Filter keys if context is active
+                    filtered_keys = raw_db.keys()
                     if self.target_identities:
-                        self.database = {k: v for k, v in full_db.items() if k in self.target_identities}
-                        print(f"   ✓ Loaded {len(self.database)} persons (filtered from {len(full_db)})")
+                        filtered_keys = [k for k in raw_db.keys() if k in self.target_identities]
+                        print(f"   🎯 Context Filter: {len(filtered_keys)} / {len(raw_db)} identities")
+                        
+                    for name in filtered_keys:
+                        val = raw_db[name]
+                        templates = []
+                        
+                        if isinstance(val, dict):
+                            # Rich structure from embeddings_all.pkl
+                            if 'templates' in val and len(val['templates']) > 0:
+                                templates = val['templates']
+                            elif 'all_embeddings' in val and len(val['all_embeddings']) > 0:
+                                # Fallback to 10 random samples if no templates but raw embeddings exist
+                                embeddings_list = val['all_embeddings']
+                                step = max(1, len(embeddings_list) // 10)
+                                templates = embeddings_list[::step][:10]
+                            elif 'embedding' in val:
+                                templates = [val['embedding']]
+                        else:
+                            # Simple structure from avg_embeddings.pkl (numpy array or list)
+                            templates = [val]
+                            
+                        # Normalize and Validate
+                        valid_templates = []
+                        for t in templates:
+                            t = np.array(t).flatten()
+                            norm = np.linalg.norm(t)
+                            if norm > 0:
+                                valid_templates.append(t / norm)
+                                
+                        if valid_templates:
+                            self.database[name] = valid_templates
+                            count_templates += len(valid_templates)
+
+                    print(f"   ✓ Loaded {len(self.database)} persons with {count_templates} total templates.")
+                    
+                    # ---------------------------------------------------------
+                    # 🚀 OPTIMIZATION: Build Numpy Feature Matrix
+                    # ---------------------------------------------------------
+                    print("   ⚙️  Building Vectorized Feature Matrix...")
+                    t_start = time.time()
+                    
+                    self.names_list = []
+                    feats_list = []
+                    
+                    for name, templates in self.database.items():
+                        for feat in templates:
+                            self.names_list.append(name)
+                            feats_list.append(feat)
+                            
+                    if feats_list:
+                        self.feature_matrix = np.array(feats_list, dtype=np.float32)
+                        # Transpose for (N, 512) dot (512,) -> (N,)
+                        # Actually keeping it (N, 512) allows np.dot(matrix, vector)
                     else:
-                        self.database = full_db
-                        print(f"   ✓ Loaded {len(self.database)} persons from pickle.")
+                        self.feature_matrix = None
+                        
+                    print(f"   🚀 Matrix Built: {self.feature_matrix.shape if self.feature_matrix is not None else 'Empty'} in {time.time()-t_start:.3f}s")
+                    
                     loaded = True
                     break
                 except Exception as e:
@@ -119,19 +187,54 @@ class VideoFaceRecognizer:
         union = area1 + area2 - intersection
         return intersection / union if union > 0 else 0.0
     
-    def _associate_face(self, bbox, frame_num):
+    def _associate_face(self, bbox, frame_num, embedding):
+        """
+        Associate detection with trackers using DeepSORT-lite logic.
+        (Appearance + IoU)
+        """
         best_face_id = None
-        best_iou = 0.0
+        best_score = -1.0 # Combined score
+        
+        # Hyperparameters
+        iou_weight = 0.3
+        app_weight = 0.7
+        min_iou_gate = 0.1 # Must overlap at least a little
+        min_cosine_gate = 0.5 # Must look somewhat similar
+        
         for face_id, tracker in self.face_trackers.items():
             if frame_num - tracker['last_seen'] > 30: continue
+            
+            # 1. IoU Score
             iou = self._calculate_iou(bbox, tracker['last_bbox'])
-            if iou > best_iou:
-                best_iou = iou
+            
+            # 2. Appearance Score (Cosine Similarity)
+            # Use the smoothed embedding of the tracker
+            tracker_emb = self._get_smoothed_embedding(face_id)
+            cosine_score = 0.0
+            if tracker_emb is not None:
+                cosine_score = np.dot(embedding, tracker_emb)
+            else:
+                # Fallback if no history yet (shouldn't happen often)
+                cosine_score = 0.5 
+            
+            # 3. Gating (Filters)
+            if iou < min_iou_gate or cosine_score < min_cosine_gate:
+                continue
+                
+            # 4. Combined Score
+            combined_score = (iou * iou_weight) + (cosine_score * app_weight)
+            
+            if combined_score > best_score:
+                best_score = combined_score
                 best_face_id = face_id
-        if best_iou >= self.face_association_threshold:
+                
+        # Threshold for assignment
+        if best_score > 0.4: # Tuned threshold
             self.face_trackers[best_face_id]['last_bbox'] = bbox
             self.face_trackers[best_face_id]['last_seen'] = frame_num
             return best_face_id
+            
+        # New Tracker
         new_id = self.next_face_id
         self.next_face_id += 1
         self.face_trackers[new_id] = {
@@ -171,40 +274,75 @@ class VideoFaceRecognizer:
         return embedding / np.linalg.norm(embedding)
     
     def match_face(self, embedding):
+        """
+        Match embedding against database (Multi-Template).
+        If no match, cluster the unknown face to give it a temporary ID.
+        """
         best_match = None
         best_score = -1.0
         
-        for person_name, person_data in self.database.items():
-            # Support both formats: templates or single embedding / list
-            templates = []
-            if isinstance(person_data, list):
-                 templates = person_data
-            elif isinstance(person_data, dict):
-                templates = person_data.get('templates', [])
-                if not templates and 'embedding' in person_data:
-                    templates = [person_data['embedding']]
-                if not templates and 'all_embeddings' in person_data:
-                    templates = person_data['all_embeddings']
-            else:
-                templates = [person_data] if hasattr(person_data, 'shape') else []
+        # 1. Known Matching (Vectorized Multi-Template)
+        # ---------------------------------------------
+        if self.feature_matrix is not None:
+            # Score = Matrix (N, 512) x Vector (512,) -> (N,)
+            scores = np.dot(self.feature_matrix, embedding)
             
-            # Compare with each template
-            for template in templates:
-                template = np.array(template).flatten()
-                similarity = np.dot(embedding, template)
-                if similarity > best_score:
-                    best_score = similarity
-                    best_match = person_name
+            # Find best match
+            best_idx = np.argmax(scores)
+            max_score = scores[best_idx]
+            
+            if max_score > best_score:
+                best_score = max_score
+                best_match = self.names_list[best_idx]
         
         if best_score >= self.threshold:
             return best_match, best_score
+            
+        # 2. Unknown Clustering (Dynamic Guest IDs)
+        # ---------------------------------------------
+        # Check against existing "Guest" clusters
+        if not hasattr(self, 'unknown_clusters'):
+            self.unknown_clusters = []  # List of {'id': int, 'embedding': array, 'count': int}
+
+        best_guest_id = None
+        best_guest_score = -1.0
+        guest_threshold = 0.65  # High enough to be sure it's the same stranger
+
+        for cluster in self.unknown_clusters:
+            similarity = np.dot(embedding, cluster['embedding'])
+            if similarity > best_guest_score:
+                best_guest_score = similarity
+                best_guest_id = cluster['id']
+
+        if best_guest_score > guest_threshold:
+            # Update cluster centroid (Moving Average)
+            for cluster in self.unknown_clusters:
+                if cluster['id'] == best_guest_id:
+                    # Simple weighted average
+                    cluster['embedding'] = 0.9 * cluster['embedding'] + 0.1 * embedding
+                    cluster['embedding'] /= np.linalg.norm(cluster['embedding'])
+                    cluster['count'] += 1
+                    return f"Misafir-{best_guest_id}", best_guest_score
         else:
-            return "Unknown", best_score
+            # Create new Guest ID
+            new_guest_id = len(self.unknown_clusters) + 1
+            self.unknown_clusters.append({
+                'id': new_guest_id,
+                'embedding': embedding,
+                'count': 1
+            })
+            return f"Misafir-{new_guest_id}", 0.0 # Score 0 because it's new
+
+        return "Unknown", best_score
     
     def draw_results(self, frame, face, name, score):
         bbox = face.bbox.astype(int)
         x1, y1, x2, y2 = bbox
-        color = self.get_color(name) if name != "Unknown" else (128, 128, 128)
+        
+        # Determine color: Gray for Unknown/Misafir, Custom for others
+        is_unknown = name == "Unknown" or name.startswith("Misafir")
+        color = (128, 128, 128) if is_unknown else self.get_color(name)
+        
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         label = f"{name} ({score:.2f})"
         (w, h), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)
@@ -246,16 +384,64 @@ class VideoFaceRecognizer:
                 if frame_count % 30 == 0: self._cleanup_stale_trackers(frame_count)
                 current_results = []
                 for face in faces:
+                    # Manual Quality Filtering (User Controls)
+                    # 1. Size Check
+                    bbox = face.bbox.astype(int)
+                    face_h = bbox[3] - bbox[1]
+                    if face_h < self.min_face_size:
+                         continue
+                         
+                    # 2. Blur Check
+                    # We need to compute blur here if not computed yet
+                    # Extract aligned face for blur check first
+                    # Or check on raw crop? Let's use aligned for consistency with extractor
+                    
+                    # NOTE: Extracting embedding aligns face, so we do it there.
+                    # But to save time we should check blur BEFORE embedding.
+                    
+                    # Quick Blur Check on Raw Crop (Faster)
+                    if self.min_blur > 0:
+                        x1, y1, x2, y2 = bbox
+                        # Boundary checks
+                        h, w, _ = frame.shape
+                        x1 = max(0, x1); y1 = max(0, y1); x2 = min(w, x2); y2 = min(h, y2)
+                        
+                        if x2-x1 > 10 and y2-y1 > 10:
+                            face_crop = frame[y1:y2, x1:x2]
+                            gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
+                            blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+                            if blur_score < self.min_blur:
+                                continue
+
+
                     q_res = self.quality_scorer.calculate(det_score=face.det_score, landmarks=face.kps)
                     if q_res['quality_score'] < self.min_quality_threshold: continue
                     embedding = self.extract_embedding(face, frame)
                     if embedding is None: continue
-                    face_id = self._associate_face(face.bbox.astype(float).tolist(), frame_count)
+                    # Pass embedding for DeepSORT-lite logic
+                    face_id = self._associate_face(face.bbox.astype(float).tolist(), frame_count, embedding)
                     self._update_embedding_buffer(face_id, embedding)
                     smoothed = self._get_smoothed_embedding(face_id)
                     name, score = self.match_face(smoothed if smoothed is not None else embedding)
                     current_results.append((face, name, score))
                     
+                    if name.startswith("Misafir") and session_id:
+                        # Save Guest Snapshot
+                        guest_dir = os.path.join(settings.MEDIA_ROOT, 'temp_faces', session_id)
+                        os.makedirs(guest_dir, exist_ok=True)
+                        guest_path = os.path.join(guest_dir, f"{name}.jpg")
+                        
+                        # Only save if not exists (first sighting)
+                        if not os.path.exists(guest_path):
+                            # Crop Face
+                            bbox = face.bbox.astype(int)
+                            x1, y1, x2, y2 = bbox
+                            h, w, _ = frame.shape
+                            x1 = max(0, x1); y1 = max(0, y1); x2 = min(w, x2); y2 = min(h, y2)
+                            if x2>x1 and y2>y1:
+                                face_img = frame[y1:y2, x1:x2]
+                                cv2.imwrite(guest_path, face_img)
+
                     # Update stats
                     self.stats[name] += 1
                     
