@@ -45,7 +45,13 @@
         </div>
         
         <!-- Action Buttons -->
-        <div>
+        <div class="flex gap-2">
+            <button @click="updateStream()" 
+                    x-show="state === 'STREAMING' || state === 'COMPLETED'"
+                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-lg shadow-emerald-500/20">
+                <i class="bi bi-play-circle"></i> Ayarları Uygula
+            </button>
+
             <button @click="reset()" 
                     x-show="state !== 'IDLE'"
                     class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
@@ -148,6 +154,7 @@ function recognitionStudio() {
         uploadProgress: 0,
         streamUrl: '',
         streamLoaded: false,
+        sessionId: null, // Store active session ID
         
         config: {
             threshold: 0.27,
@@ -211,10 +218,17 @@ function recognitionStudio() {
         },
 
         startStream(sessionId) {
-            // Build URL with simplified params
+            this.sessionId = sessionId;
+            this.updateStream();
+        },
+
+        updateStream() {
+            if (!this.sessionId) return;
+            
             const params = new URLSearchParams({
                 threshold: this.config.threshold,
-                buffer_size: this.config.buffer
+                buffer_size: this.config.buffer,
+                t: Date.now() // Force reload
             });
             
             this.state = 'STREAMING';
@@ -222,10 +236,10 @@ function recognitionStudio() {
             
             // Tiny delay to ensure server file system is ready
             setTimeout(() => {
-                this.streamUrl = `/recognition/stream/${sessionId}/?${params.toString()}`;
+                this.streamUrl = `/recognition/stream/${this.sessionId}/?${params.toString()}`;
             }, 500);
         },
-
+        
         handleStreamError() {
             // If the stream hasn't even loaded yet, it's a connection error.
             // If it loaded and then "errored", it usually means the stream ended (MJPEG end).
@@ -247,6 +261,7 @@ function recognitionStudio() {
             this.state = 'IDLE';
             this.streamUrl = '';
             this.uploadProgress = 0;
+            this.sessionId = null;
         }
     }
 }

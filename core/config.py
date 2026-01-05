@@ -96,6 +96,7 @@ class Config:
     
     VIDEO_FRAME_STRIDE = 3        # Process every N frames
     RECOGNITION_THRESHOLD = 0.35  # Cosine similarity threshold
+    GROUPING_THRESHOLD = 0.6      # For face grouping (cosine sim)
     MIN_QUALITY_SCORE = 0.3       # For recognition filtering
     
     # ==========================================

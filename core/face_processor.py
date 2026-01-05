@@ -410,7 +410,7 @@ def process_and_extract_faces_stream(video_path, movie_title, group_faces=True):
             pass
             
     # 2. Synch Config
-    Config.sync_from_django_settings()
+    # Config.sync_from_django_settings()
     
     # 3. Instantiate Extractor
     extractor = VideoFaceExtractor(
