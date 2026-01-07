@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 import base64
 import json
+import time
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.conf import settings
@@ -17,14 +18,21 @@ def labeller_page(request):
     """Renders the photo labeling tool page."""
     return render(request, 'core/labeller.html')
 
+# Global cache for the heavyweight recognizer (DB & Matrix)
+_LABELLER_RECOGNIZER = None
+
 def get_labeller_recognizer():
-    return VideoFaceRecognizer()
+    global _LABELLER_RECOGNIZER
+    if _LABELLER_RECOGNIZER is None:
+        print("⚡ Initializing Labeller Recognizer (Loading DB)...")
+        _LABELLER_RECOGNIZER = VideoFaceRecognizer()
+    return _LABELLER_RECOGNIZER
 
 @csrf_exempt
 def api_analyze_photo(request):
     """
-    Analyzes a single uploaded photo with STRICT quality checks.
-    Returns: Matches, Quality Stats, and Cropped Face.
+    Analyzes a single uploaded photo.
+    Aligned with Lookalike logic for robustness.
     """
     if request.method != 'POST':
         return JsonResponse({'success': False, 'error': 'Method not allowed'}, status=405)
@@ -49,61 +57,96 @@ def api_analyze_photo(request):
     except Exception as e:
         return JsonResponse({'success': False, 'error': f'Dosya okuma hatası: {str(e)}'}, status=400)
 
-    # Custom Settings
+    # Custom Settings (Optional override)
     det_thresh = float(request.POST.get('det_thresh', 0.5))
     min_blur = float(request.POST.get('min_blur', Config.MIN_BLUR_SCORE))
     
+    # 2. Hybrid Detection Strategy
     recognizer = get_labeller_recognizer()
     
-    # Apply Custom Settings
+    # Strategy A: Use Global Recognizer (Fast, Cached)
+    # Temporarily override threshold
+    original_thresh = recognizer.detector.det_thresh
     recognizer.detector.det_thresh = det_thresh
-    recognizer.min_blur = min_blur
-
-    # 2. Detect & Select Largest Face
-    print(f"DEBUG: Analyzing with Thresh={det_thresh}, MinBlur={min_blur}")
     
+    print(f"DEBUG: Strategy A (Global) - Analyzing with Thresh={det_thresh}")
     faces = recognizer.detector.get(img_data)
+    recognizer.detector.det_thresh = original_thresh # Restore
     
-    print(f"DEBUG: Detected {len(faces)} faces")
+    # Strategy B: Fallback to Fresh Detector (If Global failed)
+    # We try this even if image is small, just in case global detector has state issues
+    if not faces:
+        h, w = img_data.shape[:2]
+        print(f"DEBUG: Strategy A failed. Attempting Strategy B (Fresh Detector) for {w}x{h} image...")
+        
+        # Determine size
+        # Force 640x640 at minimum if small, or dynamic if large
+        # This ensures small images are upscaled if needed by InsightFace
+        det_size = (640, 640)
+        if w > 640 or h > 640:
+            max_dim = max(w, h)
+            target_dim = min(max_dim, 1280)
+            target_dim = (target_dim // 32) * 32
+            det_size = (target_dim, target_dim)
+        
+        print(f"DEBUG: Strategy B - Analyzing with Size={det_size}, Thresh={det_thresh}")
+            
+        try:
+            # DIRECT INSTANTIATION (Bypassing model_loader to match working script)
+            from insightface.app import FaceAnalysis
+            # Use 'buffalo_sc' directly as we know it works
+            dyn_app = FaceAnalysis(name='buffalo_sc', providers=['CPUExecutionProvider'])
+            dyn_app.prepare(ctx_id=0, det_size=det_size, det_thresh=det_thresh)
+            faces = dyn_app.get(img_data)
+        except Exception as e:
+            print(f"DEBUG: Strategy B Error: {e}")
+
+    print(f"DEBUG: Final Detection Count: {len(faces)}")
     
     if not faces:
-        return JsonResponse({'success': False, 'error': f'Yüz tespit edilemedi. (Eşik: {det_thresh})'}, status=400)
+        # SAVE DEBUG IMAGE for inspection
+        try:
+            debug_dir = os.path.join(settings.MEDIA_ROOT, 'debug_failed_detections')
+            os.makedirs(debug_dir, exist_ok=True)
+            ts = int(time.time())
+            cv2.imwrite(os.path.join(debug_dir, f"failed_{ts}.jpg"), img_data)
+            print(f"DEBUG: Saved failed image to debug_failed_detections/failed_{ts}.jpg")
+        except:
+            pass
+            
+        return JsonResponse({'success': False, 'error': f'Yüz tespit edilemedi. (Eşik: {det_thresh}). Hassasiyeti arttırmayı (değeri düşürmeyi) deneyin.'}, status=400)
 
     # Sort largest first
     faces.sort(key=lambda x: (x.bbox[2]-x.bbox[0]) * (x.bbox[3]-x.bbox[1]), reverse=True)
     face = faces[0]
 
-    # 3. Quality Checks (Strict Mode)
-    # Replicating checks from VideoFaceExtractor
-    
+    # 3. Quality Checks 
     # Size check
     box = face.bbox.astype(int)
-    w, h = box[2] - box[0], box[3] - box[1]
-    if w < Config.MIN_FACE_SIZE or h < Config.MIN_FACE_SIZE:
-        return JsonResponse({'success': False, 'error': f'Yüz çok küçük ({w}x{h}). Min {Config.MIN_FACE_SIZE}px gerekli.'})
+    w_box, h_box = box[2] - box[0], box[3] - box[1]
+    
+    if w_box < Config.MIN_FACE_SIZE or h_box < Config.MIN_FACE_SIZE:
+        return JsonResponse({'success': False, 'error': f'Yüz çok küçük ({w_box}x{h_box}). Min {Config.MIN_FACE_SIZE}px gerekli.'}, status=400)
 
-    # Blur Check (Laplacian)
-    # We need to crop to check blur properly roughly first
+    # Blur Check
+    # Crop for blur check
     x1, y1, x2, y2 = max(0, box[0]), max(0, box[1]), min(img_data.shape[1], box[2]), min(img_data.shape[0], box[3])
     face_img = img_data[y1:y2, x1:x2]
     
     if face_img.size == 0:
-        return JsonResponse({'success': False, 'error': 'Yüz kırpma hatası.'})
+        return JsonResponse({'success': False, 'error': 'Yüz kırpma hatası.'}, status=400)
 
-    # Blur Check
-    blur_score = FaceQualityScorer.calculate_blur_score(face_img)
+    # Blur Check (Raw Laplacian Variance)
+    gray = cv2.cvtColor(face_img, cv2.COLOR_BGR2GRAY)
+    blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+    
     if blur_score < min_blur:
          return JsonResponse({'success': False, 'error': f'Görüntü çok bulanık. (Skor: {blur_score:.1f}, Min: {min_blur})'}, status=400)
 
-    # 4. Extract Embedding & Align
-    # This aligns the face to 112x112
-    # Note: extraction method inside recognizer might trigger its own checks, but we did pre-checks.
-    # We use the raw embedding extraction to be safe.
-    
-    # We'll use a helper or the recognizer's method
+    # 4. Extract Embedding
     try:
-        # Assuming extract_valid_embedding logic or similar
-        # For this tool, we trust recognizer.extract_embedding handles alignment
+        # Note: If face was detected by dyn_detector, extracting embedding using global recognizer is still valid
+        # as long as we pass the raw img_data and the face object (which contains bbox/kps).
         embedding = recognizer.extract_embedding(face, img_data) 
         if embedding is None:
              return JsonResponse({'success': False, 'error': 'Yüz hizalama veya özellik çıkarma başarısız.'}, status=500)
@@ -113,9 +156,6 @@ def api_analyze_photo(request):
     # 5. Find Matches
     matches = recognizer.find_nearest_neighbors(embedding, k=5)
     
-    # Enrich matches with profile images (optional, if we want visuals in list)
-    # Matches structure: [{'name': 'Brad Pitt', 'score': 0.85}, ...]
-    # Convert score to percentage
     formatted_matches = []
     for m in matches:
         score_pct = int(m['score'] * 100)
@@ -124,13 +164,9 @@ def api_analyze_photo(request):
             'score': score_pct
         })
 
-    # 6. Prepare Aligned Face for display
-    # We need to re-run alignment to get the crisp image for user preview
-    # Using INSIGHTFACE helper for standard 112x112 crop
+    # 6. Prepare Aligned Face
     from insightface.utils import face_align
     aligned_face = face_align.norm_crop(img_data, landmark=face.kps)
-    
-    # Encode aligned face
     _, buffer = cv2.imencode('.jpg', aligned_face)
     aligned_b64 = base64.b64encode(buffer).decode('utf-8')
     aligned_data_url = f"data:image/jpeg;base64,{aligned_b64}"
@@ -139,7 +175,7 @@ def api_analyze_photo(request):
         'success': True,
         'quality': {
             'blur_score': int(blur_score),
-            'size': f"{w}x{h}"
+            'size': f"{w_box}x{h_box}"
         },
         'cropped_image': aligned_data_url,
         'matches': formatted_matches
@@ -162,8 +198,8 @@ def api_enroll_face(request):
         from core.services.enrollment_service import enroll_uploaded_image
         
         if 'image' not in request.FILES:
-             return JsonResponse({'success': False, 'error': 'Fotoğraf dosyası eksik.'}, status=400)
-             
+              return JsonResponse({'success': False, 'error': 'Fotoğraf dosyası eksik.'}, status=400)
+              
         file = request.FILES['image']
         
         # Use centralized service that handles File + DB + PKL

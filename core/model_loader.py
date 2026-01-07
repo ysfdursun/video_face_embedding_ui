@@ -22,7 +22,8 @@ def load_detector(det_size=None, det_thresh=None, providers=None):
     Returns:
         FaceAnalysis app ready for inference
     """
-    det_size = det_size or Config.DETECTION_SIZE
+    if det_size is None:
+        det_size = Config.DETECTION_SIZE
     # Use STRICT threshold if available
     det_thresh = det_thresh or getattr(Config, 'DETECTION_THRESHOLD_STRICT', Config.DETECTION_THRESHOLD)
     providers = providers or Config.PROVIDERS
