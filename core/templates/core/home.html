@@ -4,53 +4,52 @@
 {% block title %}Yüz Tespiti ve Gruplama{% endblock %}
 
 {% block content %}
-<div class="min-h-screen bg-slate-50 py-10" x-data="mediaApp()">
+<div class="min-h-screen bg-slate-950 py-10" x-data="mediaApp()">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <!-- Header Section -->
-        <div class="text-center mb-10">
-            <h1 class="text-4xl font-extrabold text-slate-900 tracking-tight mb-3">Yüz Tespiti ve Gruplama</h1>
-            <p class="text-lg text-slate-600 max-w-2xl mx-auto">
-                Videolarınızı yükleyin, yüz analizini başlatın ve veritabanınızı yönetin.
-            </p>
+        <!-- Header Section (Professional Style) -->
+        <div class="relative bg-slate-900 rounded-2xl p-8 mb-10 border border-slate-800 shadow-sm flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-white mb-2">
+                    Yüz Tespiti ve Gruplama
+                </h1>
+                <p class="text-slate-400 max-w-2xl font-normal text-sm">
+                    Videolarınızı yükleyin, yapay zeka destekli yüz analizini başlatın ve veritabanınızı yönetin.
+                </p>
+            </div>
+            <div class="hidden md:block opacity-20">
+                 <i class="bi bi-cpu-fill text-6xl text-slate-500"></i>
+            </div>
         </div>
 
         <!-- Alerts -->
         {% if pending_groups_count > 0 %}
-        <div class="mb-8 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between shadow-sm max-w-3xl mx-auto">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600">
-                    <i class="bi bi-exclamation-lg text-xl"></i>
-                </div>
+        <div class="mb-8 p-4 bg-amber-900/10 border border-amber-700/20 rounded-lg flex items-center justify-between shadow-sm">
+            <div class="flex items-center gap-4">
+                <i class="bi bi-exclamation-triangle-fill text-amber-500 text-xl"></i>
                 <div>
-                    <h4 class="font-bold text-amber-900">Etiketleme Bekleyen Yüzler Var</h4>
-                    <p class="text-sm text-amber-700">{{ pending_groups_count }} grup tanımlanmayı bekliyor.</p>
+                    <h4 class="font-bold text-amber-500 text-base">Etiketleme Bekleyen Yüzler Var</h4>
+                    <p class="text-xs text-amber-500/80">{{ pending_groups_count }} grup tanımlanmayı bekliyor.</p>
                 </div>
             </div>
-            <a href="{% url 'core:label_all_faces' %}" class="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg transition-colors shadow-sm">
-                İncele ve Etiketle
+            <a href="{% url 'core:label_all_faces' %}" class="px-5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold rounded-md transition-colors">
+                İncele
             </a>
         </div>
         {% endif %}
 
         <!-- Main Upload Card -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-12 max-w-3xl mx-auto relative">
-            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+        <div class="bg-slate-900 rounded-2xl shadow-lg border border-slate-800 mb-12">
             
             <div class="p-8">
-                <div class="flex items-start justify-between mb-6">
-                    <div class="flex items-center gap-3">
-                        <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
-                            <i class="bi bi-cloud-arrow-up-fill text-2xl"></i>
-                        </div>
+                <div class="flex items-start justify-between mb-8 pb-4 border-b border-slate-800">
+                    <div class="flex items-center gap-4">
+                        <i class="bi bi-cloud-arrow-up-fill text-2xl text-indigo-500"></i>
                         <div>
-                            <h2 class="text-xl font-bold text-slate-900">Video Yükle & Analiz Et</h2>
-                            <p class="text-sm text-slate-500">Sisteme yeni içerik ekleyin.</p>
+                            <h2 class="text-xl font-bold text-white">Video Yükle & Analiz Et</h2>
+                            <p class="text-xs text-slate-500">Sisteme yeni içerik ekleyin.</p>
                         </div>
                     </div>
-                    <a href="{% url 'core:settings' %}" class="w-10 h-10 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors" title="Ayarlar">
-                        <i class="bi bi-gear-fill"></i>
-                    </a>
                 </div>
 
                 <form method="post" action="{% url 'core:home' %}" enctype="multipart/form-data" class="space-y-6">
@@ -58,35 +57,35 @@
 
                     <!-- Movie Selection -->
                     <div>
-                        <label class="block text-sm font-semibold text-slate-700 mb-2">Film / Kaynak</label>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Film / Kaynak</label>
                         <input type="hidden" name="movie" x-model="selectedMovieId">
                         
                         <div class="relative">
                             <button type="button" @click="openMovieDropdown = !openMovieDropdown" 
-                                    class="w-full bg-white border-2 border-slate-200 hover:border-indigo-300 rounded-xl px-4 py-3 text-left flex justify-between items-center transition-colors">
-                                <span x-text="selectedMovieTitle || 'Bir film seçiniz...'" :class="selectedMovieTitle ? 'text-slate-900 font-medium' : 'text-slate-400'"></span>
-                                <i class="bi bi-chevron-down text-slate-400"></i>
+                                    class="w-full bg-slate-950 border border-slate-700 hover:border-slate-600 rounded-lg px-4 py-3 text-left flex justify-between items-center transition-colors">
+                                <span x-text="selectedMovieTitle || 'Bir film seçiniz...'" :class="selectedMovieTitle ? 'text-white' : 'text-slate-500'"></span>
+                                <i class="bi bi-chevron-down text-slate-600"></i>
                             </button>
 
                             <!-- Dropdown -->
                             <div x-show="openMovieDropdown" @click.away="openMovieDropdown = false" style="display: none;"
-                                 class="absolute z-50 left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto">
-                                <div class="p-2 border-b border-slate-100 sticky top-0 bg-white z-10">
-                                    <input x-model="movieSearch" type="text" placeholder="Film ara..." 
-                                            class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                 class="absolute z-50 left-0 right-0 mt-2 bg-slate-900 border border-slate-700 rounded-lg shadow-xl max-h-80 overflow-y-auto">
+                                <div class="p-2 border-b border-slate-800 sticky top-0 bg-slate-900 z-10">
+                                    <input x-model="movieSearch" type="text" placeholder="Ara..." 
+                                            class="w-full bg-slate-950 border border-slate-700 rounded-md px-3 py-2 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
                                 </div>
                                 
-                                <div class="p-1">
+                                <div class="p-1 space-y-0.5">
                                     <template x-for="movie in filteredMovies" :key="movie.id">
                                         <button type="button" @click="selectMovie(movie.id, movie.title); openMovieDropdown = false"
-                                                class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-slate-50 text-sm text-slate-700 font-medium transition-colors">
+                                                class="w-full text-left px-3 py-2 rounded-md hover:bg-slate-800 text-sm text-slate-300 hover:text-white transition-colors flex items-center justify-between">
                                             <span x-text="movie.title"></span>
                                         </button>
                                     </template>
                                     
                                     <button type="button" @click="showNewMovieModal = true; openMovieDropdown = false"
-                                            class="w-full text-left px-3 py-2.5 rounded-lg hover:bg-indigo-50 text-indigo-600 hover:text-indigo-700 text-sm font-semibold flex items-center gap-2 mt-1 border-t border-slate-100 pt-2">
-                                        <i class="bi bi-plus-circle"></i> Yeni Film Oluştur
+                                            class="w-full text-left px-3 py-2 rounded-md hover:bg-slate-800 text-indigo-400 hover:text-indigo-300 text-sm font-medium flex items-center gap-2 mt-1 border-t border-slate-800 pt-2">
+                                        <i class="bi bi-plus-lg"></i> Yeni Film Oluştur
                                     </button>
                                 </div>
                             </div>
@@ -94,205 +93,199 @@
                     </div>
 
                     <!-- Cast Preview -->
-                    <div x-show="selectedMovieId" x-transition class="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                    <div x-show="selectedMovieId" x-transition class="bg-slate-950/50 rounded-lg p-4 border border-slate-800">
                         <div class="flex justify-between items-center mb-3">
-                            <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wide">Oyuncu Kadrosu</h4>
+                            <h4 class="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                                Oyuncu Kadrosu
+                            </h4>
                             <button type="button" @click="showCastModal = true" 
-                                    class="text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors">
-                                <i class="bi bi-pencil-fill mr-1"></i>Düzenle
+                                    class="text-xs font-medium text-indigo-400 hover:text-indigo-300 hover:underline">
+                                Düzenle
                             </button>
                         </div>
                         <div class="flex flex-wrap gap-2">
                             <template x-for="actor in currentCast" :key="actor">
-                                <span class="px-2.5 py-1 bg-white border border-slate-200 rounded-md text-sm text-slate-600 shadow-sm flex items-center gap-1.5">
-                                    <i class="bi bi-person-fill text-slate-400"></i>
+                                <span class="px-2 py-1 bg-slate-800 rounded border border-slate-700 text-xs text-slate-300 flex items-center gap-2">
+                                    <i class="bi bi-person-fill text-slate-500"></i>
                                     <span x-text="actor"></span>
                                 </span>
                             </template>
-                            <span x-show="currentCast.length === 0" class="text-sm text-slate-400 italic">Bu filme henüz oyuncu eklenmemiş.</span>
+                            <span x-show="currentCast.length === 0" class="text-xs text-slate-500 italic">
+                                Bu filme henüz oyuncu eklenmemiş.
+                            </span>
                         </div>
                     </div>
 
                     <!-- File Input -->
                     <div>
-                        <label class="block text-sm font-semibold text-slate-700 mb-2">Video Dosyası</label>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Video Dosyası</label>
                         <input type="file" name="video_file" required
-                               class="block w-full text-sm text-slate-500
+                               class="block w-full text-sm text-slate-400
                                       file:mr-4 file:py-3 file:px-6
-                                      file:rounded-xl file:border-0
-                                      file:text-sm file:font-bold
-                                      file:bg-indigo-50 file:text-indigo-700
-                                      hover:file:bg-indigo-100
-                                      border border-slate-200 rounded-xl p-2
-                                      cursor-pointer bg-white transition-all
-                                      focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                      file:rounded-l-lg file:border-0
+                                      file:text-sm file:font-medium
+                                      file:bg-indigo-600 file:text-white
+                                      hover:file:bg-indigo-500
+                                      file:cursor-pointer
+                                      border border-slate-700 rounded-lg bg-slate-950
+                                      cursor-pointer transition-colors
+                                      focus:outline-none focus:border-indigo-500">
                     </div>
 
                     <button type="submit" :disabled="loading"
-                            class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
-                        <span x-show="!loading" class="flex items-center gap-2"><i class="bi bi-cloud-upload-fill text-xl"></i> Yükle ve Başlat</span>
-                        <span x-show="loading" class="flex items-center gap-2"><i class="bi bi-arrow-repeat animate-spin text-xl"></i> İşleniyor...</span>
+                            class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg shadow-sm transition-colors flex items-center justify-center gap-2">
+                        <span x-show="!loading" class="flex items-center gap-2"><i class="bi bi-cloud-upload text-lg"></i> Yükle ve Başlat</span>
+                        <span x-show="loading" class="flex items-center gap-2"><i class="bi bi-arrow-repeat animate-spin text-lg"></i> İşleniyor...</span>
                     </button>
                 </form>
             </div>
         </div>
 
-            <!-- Recent Videos List (Existing) -->
-            <div class="max-w-5xl mx-auto mb-16">
-                <!-- ... existing list ... --> 
-                <!-- (I will assume I am appending AFTER the list, but effectively I'm replacing the end of the content block effectively) -->
-                <!-- Actually, I should just append to the bottom of the container -->
+        <!-- Project Statistics & Charts -->
+        <div class="max-w-5xl mx-auto mb-16">
+            <h3 class="text-lg font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-2">
+                <i class="bi bi-bar-chart-line text-slate-500"></i>
+                Veri İstatistikleri
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <!-- Stat 1 -->
+                <div class="bg-slate-900 p-5 rounded-xl border border-slate-800">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Tanımlı Aktör</span>
+                        <i class="bi bi-people-fill text-indigo-500"></i>
+                    </div>
+                    <span class="text-3xl font-bold text-white">{{ stats.total_actors|default:"0" }}</span>
+                </div>
+                <!-- Stat 2 -->
+                <div class="bg-slate-900 p-5 rounded-xl border border-slate-800">
+                     <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Film Arşivi</span>
+                        <i class="bi bi-film text-blue-500"></i>
+                    </div>
+                    <span class="text-3xl font-bold text-white">{{ stats.total_movies|default:"0" }}</span>
+                </div>
+                <!-- Stat 3 -->
+                <div class="bg-slate-900 p-5 rounded-xl border border-slate-800">
+                     <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">İşlenen Yüz</span>
+                        <i class="bi bi-images text-emerald-500"></i>
+                    </div>
+                    <span class="text-3xl font-bold text-white">{{ stats.total_labeled_faces|default:"0" }}</span>
+                </div>
+                <!-- Stat 4 -->
+                <div class="bg-slate-900 p-5 rounded-xl border border-slate-800">
+                     <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Bekleyen Yüz</span>
+                        <i class="bi bi-clock-history text-amber-500"></i>
+                    </div>
+                    <span class="text-3xl font-bold text-white">{{ stats.pending_faces|default:"0" }}</span>
+                </div>
             </div>
 
-            <!-- Project Statistics & Charts -->
-            <div class="max-w-5xl mx-auto mb-12">
-                <h3 class="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
-                    <i class="bi bi-bar-chart-line text-slate-400"></i>
-                    Veri Analizi ve İstatistikler
-                </h3>
-
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <!-- Stat 1 -->
-                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                        <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mb-3">
-                            <i class="bi bi-people-fill text-2xl"></i>
-                        </div>
-                        <span class="text-3xl font-black text-slate-900">{{ stats.total_actors|default:"0" }}</span>
-                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wide mt-1">Tanımlı Aktör</span>
-                    </div>
-                    <!-- Stat 2 -->
-                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                        <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mb-3">
-                            <i class="bi bi-film text-2xl"></i>
-                        </div>
-                        <span class="text-3xl font-black text-slate-900">{{ stats.total_movies|default:"0" }}</span>
-                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wide mt-1">Film Arşivi</span>
-                    </div>
-                    <!-- Stat 3 -->
-                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                        <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-3">
-                            <i class="bi bi-images text-2xl"></i>
-                        </div>
-                        <span class="text-3xl font-black text-slate-900">{{ stats.total_labeled_faces|default:"0" }}</span>
-                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wide mt-1">İşlenen Yüz</span>
-                    </div>
-                    <!-- Stat 4 -->
-                    <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center">
-                        <div class="w-12 h-12 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-3">
-                            <i class="bi bi-patch-question-fill text-2xl"></i>
-                        </div>
-                        <span class="text-3xl font-black text-slate-900">{{ stats.pending_faces|default:"0" }}</span>
-                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wide mt-1">Bekleyen Yüz</span>
-                    </div>
-                </div>
-
-                <!-- Simple CSS Chart / Project Info -->
-                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 flex flex-col md:flex-row items-center gap-10">
-                    <div class="flex-1">
-                        <h4 class="text-lg font-bold text-slate-900 mb-2">Sistem Verimliliği</h4>
-                        <p class="text-slate-500 text-sm mb-6">
-                            Mevcut etiketleme ve işleme durumu. 
-                            <span class="text-xs text-slate-400 italic block mt-1">(Profil fotoğrafları analize dahil edilmez)</span>
-                        </p>
-                        
-                        <!-- Progress Bars -->
-                        <div class="space-y-4">
-                            <div>
-                                <div class="flex justify-between text-xs font-semibold text-slate-600 mb-1">
-                                    <span>Aktör Tanımlama Oranı</span>
-                                    <span>%{{ stats.identification_rate }}</span>
-                                </div>
-                                <div class="w-full bg-slate-100 rounded-full h-2.5">
-                                    <div class="bg-indigo-600 h-2.5 rounded-full" style="width: {{ stats.identification_rate }}%"></div>
-                                </div>
-                            </div>
-                            <div>
-                                <div class="flex justify-between text-xs font-semibold text-slate-600 mb-1">
-                                    <span>Veri Seti Kalitesi</span>
-                                    <span>%{{ stats.quality_rate }}</span>
-                                </div>
-                                <div class="w-full bg-slate-100 rounded-full h-2.5">
-                                    <div class="bg-emerald-500 h-2.5 rounded-full" style="width: {{ stats.quality_rate }}%"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Simple CSS Chart / Project Info -->
+            <div class="bg-slate-900 rounded-xl border border-slate-800 p-6 flex flex-col md:flex-row items-center gap-10">
+                <div class="flex-1 w-full">
+                    <h4 class="text-base font-bold text-white mb-1">Sistem Verimliliği</h4>
+                    <p class="text-slate-500 text-xs mb-6 max-w-md">
+                        Mevcut etiketleme ve işleme durumu analizi.
+                    </p>
                     
-                    <div class="w-full md:w-64 bg-slate-50 rounded-xl p-6 text-center border border-slate-100">
-                        <div class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2">FaceAI Engine</div>
-                        <div class="text-3xl font-black text-slate-800 mb-1">v.1.3.0</div>
-                        <div class="text-xs text-slate-500">Stable Build • 2024</div>
+                    <!-- Progress Bars -->
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+                                <span>AKTÖR TANIMLAMA ORANI</span>
+                                <span class="text-indigo-400">%{{ stats.identification_rate }}</span>
+                            </div>
+                            <div class="w-full bg-slate-950 rounded-full h-2 border border-slate-800">
+                                <div class="bg-indigo-600 h-full rounded-full" style="width: {{ stats.identification_rate }}%"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+                                <span>VERİ SETİ KALİTESİ</span>
+                                <span class="text-emerald-500">%{{ stats.quality_rate }}</span>
+                            </div>
+                            <div class="w-full bg-slate-950 rounded-full h-2 border border-slate-800">
+                                <div class="bg-emerald-600 h-full rounded-full" style="width: {{ stats.quality_rate }}%"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+                
+                <div class="w-full md:w-48 text-right">
+                    <div class="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1">Face Studio</div>
+                    <div class="text-2xl font-bold text-white mb-0">v.1.3.0</div>
+                    <div class="text-[10px] text-slate-500">Stable Build</div>
+                </div>
             </div>
-
         </div>
 
     </div>
 
-
-    <!-- GLOBAL MODALS (Manually placed for safety, no teleport) -->
+    <!-- GLOBAL MODALS (Dark Themed) -->
     
     <!-- New Movie Modal -->
     <div x-show="showNewMovieModal" style="display: none;" 
-         class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+         class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
          x-transition>
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" @click.away="showNewMovieModal = false">
-            <h3 class="text-xl font-bold text-slate-900 mb-4">Yeni Film Ekle</h3>
+        <div class="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-700" @click.away="showNewMovieModal = false">
+            <h3 class="text-xl font-bold text-white mb-4">Yeni Film Ekle</h3>
             <input x-model="newMovieTitle" type="text" placeholder="Film adı giriniz..." 
-                   class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium">
+                   class="w-full px-4 py-3 bg-slate-800 border-2 border-slate-700 text-white rounded-xl mb-6 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium placeholder-slate-500">
             <div class="flex justify-end gap-3">
-                <button @click="showNewMovieModal = false" class="px-5 py-2.5 text-slate-600 hover:bg-slate-100 rounded-lg font-medium transition-colors">İptal</button>
-                <button @click="createMovie()" class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition-colors shadow-sm shadow-indigo-200">Oluştur</button>
+                <button @click="showNewMovieModal = false" class="px-5 py-2.5 text-slate-400 hover:bg-slate-800 hover:text-white rounded-lg font-medium transition-colors">İptal</button>
+                <button @click="createMovie()" class="px-5 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-bold transition-colors shadow-lg shadow-indigo-900/50">Oluştur</button>
             </div>
         </div>
     </div>
 
     <!-- Cast Manager Modal -->
     <div x-show="showCastModal" style="display: none;" 
-         class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+         class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm px-4"
          x-transition>
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] overflow-hidden" @click.away="showCastModal = false">
-            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                <h3 class="text-lg font-bold text-slate-900">Oyuncu Kadrosunu Düzenle</h3>
-                <button @click="showCastModal = false" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-200 text-slate-400 transition-colors">
+        <div class="bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[85vh] overflow-hidden border border-slate-700" @click.away="showCastModal = false">
+            <div class="px-6 py-5 border-b border-slate-800 bg-slate-900 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-white">Oyuncu Kadrosunu Düzenle</h3>
+                <button @click="showCastModal = false" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-800 text-slate-400 transition-colors">
                     <i class="bi bi-x-lg"></i>
                 </button>
             </div>
             
-            <div class="p-6 overflow-y-auto flex-1">
+            <div class="p-6 overflow-y-auto flex-1 bg-slate-900">
                 <!-- Current Cast -->
-                <div class="mb-6">
-                    <label class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 block">Ekli Oyuncular</label>
+                <div class="mb-8">
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 block">Ekli Oyuncular</label>
                     <div class="flex flex-wrap gap-2">
                         <template x-for="actor in currentCast" :key="actor">
-                            <span class="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 text-sm font-semibold flex items-center gap-2">
+                            <span class="px-3 py-1.5 bg-indigo-500/10 text-indigo-300 rounded-lg border border-indigo-500/20 text-sm font-semibold flex items-center gap-2">
                                 <i class="bi bi-person-fill opacity-60"></i>
                                 <span x-text="actor"></span>
                             </span>
                         </template>
-                        <span x-show="currentCast.length === 0" class="text-slate-400 italic text-sm">Liste boş.</span>
+                        <span x-show="currentCast.length === 0" class="text-slate-600 italic text-sm">Liste boş.</span>
                     </div>
                 </div>
 
                 <!-- Add Logic -->
-                <div class="space-y-4 pt-4 border-t border-slate-100">
+                <div class="space-y-5 pt-6 border-t border-slate-800">
                     <div>
-                        <label class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 block">Oyuncu Ekle</label>
+                        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">Oyuncu Ekle</label>
                         <div class="relative">
-                            <i class="bi bi-search absolute left-3 top-3.5 text-slate-400"></i>
+                            <i class="bi bi-search absolute left-3 top-3.5 text-slate-500"></i>
                             <input x-model="actorSearch" 
                                    @input.debounce.300ms="searchActors()"
                                    type="text" placeholder="İsim ile ara..." 
-                                   class="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium">
+                                   class="w-full pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all font-medium placeholder-slate-600">
                             
                             <!-- Search Results -->
-                            <div x-show="actorSearchResults.length > 0" class="absolute z-10 w-full mt-2 bg-white shadow-xl border border-slate-100 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
+                            <div x-show="actorSearchResults.length > 0" class="absolute z-10 w-full mt-2 bg-slate-800 shadow-xl border border-slate-700 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                                 <template x-for="res in actorSearchResults" :key="res.name">
                                     <button @click="addActorToCast(res.name)"
-                                            class="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm border-b border-slate-50 last:border-0 flex items-center justify-between group">
-                                        <span x-text="res.name" class="font-bold text-slate-700"></span>
-                                        <i class="bi bi-plus-lg text-slate-300 group-hover:text-indigo-600 transition-colors"></i>
+                                            class="w-full text-left px-4 py-3 hover:bg-slate-700 text-sm text-slate-300 border-b border-slate-700 last:border-0 flex items-center justify-between group">
+                                        <span x-text="res.name" class="font-bold"></span>
+                                        <i class="bi bi-plus-lg text-slate-500 group-hover:text-white transition-colors"></i>
                                     </button>
                                 </template>
                             </div>
@@ -300,15 +293,15 @@
                     </div>
 
                     <div class="relative flex py-2 items-center">
-                        <div class="flex-grow border-t border-slate-100"></div>
-                        <span class="flex-shrink-0 mx-4 text-xs text-slate-400 font-semibold">YOKSA</span>
-                        <div class="flex-grow border-t border-slate-100"></div>
+                        <div class="flex-grow border-t border-slate-800"></div>
+                        <span class="flex-shrink-0 mx-4 text-xs text-slate-600 font-bold">YOKSA</span>
+                        <div class="flex-grow border-t border-slate-800"></div>
                     </div>
 
                     <!-- Create New -->
                     <div class="flex gap-2">
-                        <input x-model="newActorName" type="text" placeholder="Yeni Oluştur: Ad Soyad" class="flex-1 px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all">
-                        <button @click="createNewActor()" class="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors shadow-sm shadow-emerald-200">
+                        <input x-model="newActorName" type="text" placeholder="Yeni Oluştur: Ad Soyad" class="flex-1 px-4 py-3 bg-slate-800 border border-slate-700 text-white rounded-xl focus:ring-2 focus:ring-emerald-500 transition-all placeholder-slate-600">
+                        <button @click="createNewActor()" class="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-colors shadow-lg shadow-emerald-900/50">
                             <i class="bi bi-plus-lg"></i>
                         </button>
                     </div>

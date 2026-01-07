@@ -7,16 +7,11 @@
 <div class="min-h-screen bg-slate-900 text-white" x-data="labellerApp()">
 
     <!-- Header -->
-    <div class="bg-gradient-to-r from-blue-900 to-slate-900 border-b border-white/10 px-8 py-6 mb-8 text-center relative overflow-hidden">
-        <div class="relative z-10">
-            <h1 class="text-4xl font-extrabold text-white mb-2 tracking-tight">
-                <span class="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">Fotoğraf</span> Etiketleme Aracı
-            </h1>
-            <p class="text-slate-400 text-lg">Tek fotoğrafları analiz et, kalite kontrolünden geçir ve veritabanına ekle.</p>
-        </div>
-        
-        <!-- Decoration -->
-        <div class="absolute top-0 left-0 w-full h-full opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+    <div class="bg-slate-900 border-b border-slate-800 px-8 py-6 mb-8 text-center flex flex-col items-center justify-center">
+        <h1 class="text-3xl font-bold text-white mb-2">
+            Fotoğraf Etiketleme Aracı
+        </h1>
+        <p class="text-slate-400 text-sm max-w-2xl">Tek fotoğrafları analiz et, kalite kontrolünden geçir ve veritabanına ekle.</p>
     </div>
 
     <div class="container mx-auto px-4 pb-20 max-w-6xl">
@@ -70,7 +65,7 @@
                         </div>
                         <input type="range" min="0.1" max="0.9" step="0.05" x-model="settings.det_thresh"
                                class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500">
-                        <p class="text-[10px] text-slate-500 mt-1">Düşük değer daha fazla (ama hatalı) yüz bulur.</p>
+                        <p class="text-[10px] text-slate-400 mt-1">Düşük değer daha fazla (ama hatalı) yüz bulur.</p>
                     </div>
 
                     <!-- Min Blur -->
@@ -81,7 +76,7 @@
                         </div>
                         <input type="range" min="0" max="200" step="5" x-model="settings.min_blur"
                                class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500">
-                        <p class="text-[10px] text-slate-500 mt-1">Yüksek değer sadece çok net fotoğrafları kabul eder. (Vars: 80)</p>
+                        <p class="text-[10px] text-slate-400 mt-1">Yüksek değer sadece çok net fotoğrafları kabul eder. (Vars: 80)</p>
                     </div>
                 </div>
 
@@ -105,7 +100,7 @@
                 </h3>
 
                 <!-- Initial State -->
-                <div x-show="!results && !error" class="flex-1 flex flex-col items-center justify-center text-slate-500 opacity-50">
+                <div x-show="!results && !error" class="flex-1 flex flex-col items-center justify-center text-slate-500">
                     <i class="bi bi-rulers text-6xl mb-4"></i>
                     <p>Analiz sonuçları burada görünecek.</p>
                 </div>

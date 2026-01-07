@@ -27,7 +27,7 @@
         }
     </script>
 </head>
-<body class="bg-slate-50">
+<body class="bg-slate-950 text-slate-300">
     <!-- Sidebar Navigation -->
     <button data-drawer-target="logo-sidebar" data-drawer-toggle="logo-sidebar" aria-controls="logo-sidebar" type="button" class="inline-flex items-center p-2 mt-2 ms-3 text-sm text-gray-500 rounded-lg sm:hidden hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 dark:focus:ring-gray-600">
         <span class="sr-only">Open sidebar</span>
@@ -40,80 +40,81 @@
        <div class="h-full px-4 py-8 overflow-y-auto bg-slate-900 flex flex-col">
           <!-- Logo -->
           <a href="{% url 'core:welcome' %}" class="flex items-center ps-2.5 mb-10 group">
-             <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-110 transition-transform duration-300">
+             <div class="w-10 h-10 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30 group-hover:scale-110 transition-transform duration-300">
                  <i class="bi bi-cpu-fill text-white text-xl"></i>
              </div>
              <div class="ms-3">
-                 <h1 class="text-xl font-bold text-white tracking-tight">FaceAI <span class="text-indigo-400">Studio</span></h1>
+                 <h1 class="text-xl font-bold text-white tracking-tight">Face <span class="text-indigo-400">Studio</span></h1>
                  <p class="text-xs text-slate-500 font-medium">Professional Suite</p>
              </div>
           </a>
 
           <!-- Navigation -->
-          <ul class="space-y-3 font-medium flex-1">
-             <li>
-                <a href="{% url 'core:home' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1 {% if request.resolver_match.url_name == 'home' %}bg-slate-800 text-white shadow-sm ring-1 ring-white/10{% endif %}">
-                   <i class="bi bi-grid-1x2-fill text-xl transition-colors group-hover:text-indigo-400 {% if request.resolver_match.url_name == 'home' %}text-indigo-500{% endif %}"></i>
-                   <span class="ms-3">Yüz Tespiti ve Gruplama</span>
-                </a>
-             </li>
+          <ul class="space-y-1 font-medium flex-1">
+             
+             <!-- ANALIZ -->
+             <div class="pb-2 pt-2">
+                 <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Analiz Merkezi</p>
+             </div>
              
              <li>
-                <a href="{% url 'core:labeller_page' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1 {% if request.resolver_match.url_name == 'labeller_page' %}bg-slate-800 text-white shadow-sm ring-1 ring-white/10{% endif %}">
-                   <i class="bi bi-person-bounding-box text-xl transition-colors group-hover:text-cyan-400 {% if request.resolver_match.url_name == 'labeller_page' %}text-cyan-500{% endif %}"></i>
-                   <span class="ms-3">Fotoğraf Etiketle</span>
+                <a href="{% url 'core:home' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors {% if request.resolver_match.url_name == 'home' %}bg-slate-800 text-white border-r-2 border-indigo-500{% endif %}">
+                   <i class="bi bi-grid-1x2-fill text-lg transition-colors {% if request.resolver_match.url_name == 'home' %}text-indigo-400{% else %}group-hover:text-white{% endif %}"></i>
+                   <span class="ms-3 text-sm font-medium">Panel & Yükleme</span>
                 </a>
              </li>
-             
-             <div class="pt-4 pb-2">
-                 <p class="px-3 text-xs font-bold text-slate-600 uppercase tracking-wider">Medya Yönetimi</p>
+             <li>
+                <a href="{% url 'core:labeller_page' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors {% if request.resolver_match.url_name == 'labeller_page' %}bg-slate-800 text-white border-r-2 border-cyan-500{% endif %}">
+                   <i class="bi bi-crop text-lg transition-colors {% if request.resolver_match.url_name == 'labeller_page' %}text-cyan-400{% else %}group-hover:text-white{% endif %}"></i>
+                   <span class="ms-3 text-sm font-medium">Fotoğraf Etiketle</span>
+                </a>
+             </li>
+             <li>
+                <a href="{% url 'core:lookalike_page' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors {% if request.resolver_match.url_name == 'lookalike_page' %}bg-slate-800 text-white border-r-2 border-pink-500{% endif %}">
+                   <i class="bi bi-magic text-lg transition-colors {% if request.resolver_match.url_name == 'lookalike_page' %}text-pink-400{% else %}group-hover:text-white{% endif %}"></i>
+                   <span class="ms-3 text-sm font-medium">Hangi Ünlü?</span>
+                </a>
+             </li>
+
+             <!-- MEDYA -->
+             <div class="pt-6 pb-2">
+                 <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Medya Kütüphanesi</p>
              </div>
 
              <li>
-                <a href="{% url 'core:movies_dashboard' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
-                   <i class="bi bi-collection-play-fill text-xl transition-colors group-hover:text-blue-400"></i>
-                   <span class="ms-3">Filmler</span>
+                <a href="{% url 'core:movies_dashboard' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-film text-lg transition-colors group-hover:text-white"></i>
+                   <span class="ms-3 text-sm font-medium">Filmler</span>
                 </a>
              </li>
              <li>
-                <a href="{% url 'core:actors_dashboard' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
-                   <i class="bi bi-people-fill text-xl transition-colors group-hover:text-emerald-400"></i>
-                   <span class="ms-3">Oyuncular</span>
+                <a href="{% url 'core:actors_dashboard' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-people text-lg transition-colors group-hover:text-white"></i>
+                   <span class="ms-3 text-sm font-medium">Oyuncular</span>
                 </a>
              </li>
              
-             <div class="pt-4 pb-2">
-                 <p class="px-3 text-xs font-bold text-slate-600 uppercase tracking-wider">Analiz Araçları</p>
+             <!-- ARAÇLAR -->
+             <div class="pt-6 pb-2">
+                 <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">Araçlar & Sistem</p>
              </div>
 
              <li>
-                <a href="{% url 'core:label_all_faces' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
-                   <i class="bi bi-tags-fill text-xl transition-colors group-hover:text-amber-400"></i>
-                   <span class="ms-3 flex-1">Etiketleme</span>
-                   <span class="inline-flex items-center justify-center w-3 h-3 p-3 ms-3 text-xs font-medium text-amber-800 bg-amber-100 rounded-full group-hover:bg-amber-500 group-hover:text-white transition-colors">!</span>
+                <a href="{% url 'core:label_all_faces' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-tags text-lg transition-colors group-hover:text-white"></i>
+                   <span class="ms-3 text-sm font-medium flex-1">Toplu Etiketleme</span>
                 </a>
              </li>
              <li>
-                <a href="{% url 'core:recognition_page' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
-                   <i class="bi bi-person-bounding-box text-xl transition-colors group-hover:text-cyan-400"></i>
-                   <span class="ms-3">Yüz Tanıma</span>
+                <a href="{% url 'core:recognition_page' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-camera-video text-lg transition-colors group-hover:text-white"></i>
+                   <span class="ms-3 text-sm font-medium">Canlı Tanıma</span>
                 </a>
              </li>
              <li>
-                <a href="{% url 'core:lookalike_page' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
-                   <i class="bi bi-magic text-xl transition-colors group-hover:text-pink-400"></i>
-                   <span class="ms-3">Hangi Ünlü?</span>
-                </a>
-             </li>
-
-             <div class="pt-4 pb-2">
-                 <p class="px-3 text-xs font-bold text-slate-600 uppercase tracking-wider">Sistem</p>
-             </div>
-
-             <li>
-                <a href="{% url 'core:settings' %}" class="flex items-center p-3 text-slate-400 rounded-xl hover:bg-slate-800 hover:text-white group transition-all duration-200 hover:translate-x-1">
-                   <i class="bi bi-gear-wide-connected text-xl transition-colors group-hover:text-slate-200"></i>
-                   <span class="ms-3">Ayarlar</span>
+                <a href="{% url 'core:settings' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors">
+                   <i class="bi bi-gear text-lg transition-colors group-hover:text-white"></i>
+                   <span class="ms-3 text-sm font-medium">Ayarlar</span>
                 </a>
              </li>
           </ul>
@@ -123,39 +124,37 @@
              <div class="p-4 bg-slate-800/50 rounded-2xl border border-slate-700/50 backdrop-blur-sm">
                 <div class="flex items-center gap-3 mb-2">
                     <div class="relative">
-                        <span class="flex w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
-                        <span class="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75 animate-ping"></span>
+                        <span class="flex w-3 h-3 bg-emerald-500 rounded-full shadow-[0_0_10px_rgba(16,185,129,0.5)]"></span>
+                        <span class="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping"></span>
                     </div>
-                   <span class="text-sm font-bold text-slate-200">Sistem Çevrimiçi</span>
+                   <span class="text-xs font-bold text-slate-200">Sistem Çevrimiçi</span>
                 </div>
-                <p class="text-xs text-slate-500 mt-1">
-                    GPU Hızlandırma: 
+                <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wide">
+                    GPU Durumu: 
                     <span class="font-bold {{ global_settings.gpu_enabled|yesno:'text-emerald-500,text-slate-400' }}">
-                        {{ global_settings.gpu_enabled|yesno:"Aktif,Pasif" }}
+                        {{ global_settings.gpu_enabled|yesno:"AKTİF,PASİF" }}
                     </span>
-                    {% if global_settings.gpu_enabled %}
-                    <span class="text-[10px] text-emerald-600 bg-emerald-100 px-1 rounded ml-1">CUDA</span>
-                    {% endif %}
                 </p>
              </div>
           </div>
        </div>
     </aside>
  
-    <!-- Main Content -->
-    <div class="p-4 sm:ml-64">
-        <div class="p-4 mt-14 sm:mt-0">
+    <!-- Main Content Wrapper -->
+    <div class="p-4 sm:ml-64 min-h-screen flex flex-col">
+        <!-- Content Area -->
+        <div class="flex-1 p-4 mt-14 sm:mt-0">
              {% block content %}
              {% endblock %}
         </div>
-    </div>
 
-    <!-- Footer -->
-    <footer class="mt-12 border-t border-slate-200 bg-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-slate-600 text-sm">
-            <p>&copy; 2025 - Yüz Tanıma Projesi</p>
-        </div>
-    </footer>
+        <!-- Footer -->
+        <footer class="mt-auto border-t border-slate-800 bg-slate-950">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-center text-slate-500 text-xs">
+                <p>&copy; 2025 - Yüz Tanıma Projesi | <span class="text-slate-400">Face Studio Professional</span></p>
+            </div>
+        </footer>
+    </div>
     
     <!-- Flowbite JS -->
     <script src="{% static 'core/vendor/flowbite.min.js' %}"></script>

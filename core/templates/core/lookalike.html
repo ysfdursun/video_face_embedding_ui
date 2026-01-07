@@ -7,31 +7,26 @@
 <div class="min-h-screen bg-slate-900 text-white" x-data="lookalikeApp()">
 
     <!-- Header -->
-    <div class="bg-gradient-to-r from-purple-900 to-slate-900 border-b border-white/10 px-8 py-6 mb-8 text-center relative overflow-hidden">
-        <div class="relative z-10">
-            <h1 class="text-4xl font-extrabold text-white mb-2 tracking-tight">
-                <span class="bg-clip-text text-transparent bg-gradient-to-r from-pink-500 to-purple-500">Hangi Ünlüye</span> Benziyorsun?
-            </h1>
-            <p class="text-slate-400 text-lg">Yapay zeka ile en çok benzediğin ünlüleri keşfet.</p>
-        </div>
-        
-        <!-- Decoration -->
-        <div class="absolute top-0 left-0 w-full h-full opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+    <div class="bg-slate-900 border-b border-slate-800 px-8 py-6 mb-8 text-center flex flex-col items-center justify-center">
+        <h1 class="text-3xl font-bold text-white mb-2">
+            Hangi Ünlüye Benziyorsun?
+        </h1>
+        <p class="text-slate-400 text-sm max-w-2xl">Yapay zeka ile en çok benzediğin ünlüleri keşfet.</p>
     </div>
 
     <div class="container mx-auto px-4 pb-20 max-w-5xl">
         
         <!-- Tabs -->
         <div class="flex justify-center mb-10">
-            <div class="bg-slate-800 p-1 rounded-2xl flex border border-white/10 shadow-2xl">
+            <div class="bg-slate-950 p-1 rounded-lg flex border border-slate-800">
                 <button @click="mode = 'webcam'; reset()" 
-                        :class="mode === 'webcam' ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
-                        class="px-8 py-3 rounded-xl font-bold transition-all duration-300 flex items-center gap-2">
+                        :class="mode === 'webcam' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                        class="px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200 flex items-center gap-2">
                     <i class="bi bi-camera-video-fill"></i> Webcam
                 </button>
                 <button @click="mode = 'upload'; reset()"
-                        :class="mode === 'upload' ? 'bg-gradient-to-r from-pink-600 to-purple-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'"
-                        class="px-8 py-3 rounded-xl font-bold transition-all duration-300 flex items-center gap-2">
+                        :class="mode === 'upload' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-white hover:bg-slate-800'"
+                        class="px-6 py-2 rounded-md text-sm font-semibold transition-all duration-200 flex items-center gap-2">
                     <i class="bi bi-cloud-upload-fill"></i> Fotoğraf Yükle
                 </button>
             </div>
@@ -40,16 +35,16 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
             
             <!-- Left: Input Area -->
-            <div class="bg-slate-800/50 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-2xl h-full flex flex-col items-center justify-center min-h-[400px]">
+            <div class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-xl h-full flex flex-col items-center justify-center min-h-[400px]">
                 
                 <!-- WEBCAM MODE -->
                 <div x-show="mode === 'webcam'" class="w-full h-full flex flex-col items-center">
-                    <div class="relative w-full aspect-[4/3] bg-black rounded-2xl overflow-hidden border-2 border-slate-700 shadow-inner group">
+                    <div class="relative w-full aspect-[4/3] bg-black rounded-xl overflow-hidden border border-slate-700 shadow-sm group">
                         <video x-ref="video" class="w-full h-full object-cover transform scale-x-[-1]" autoplay playsinline muted></video>
                         
                         <!-- Overlay when inactive -->
                         <div x-show="!streamActive && !capturedImage" class="absolute inset-0 flex items-center justify-center bg-slate-900/80">
-                            <button @click="startCamera()" class="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-colors animate-pulse">
+                            <button @click="startCamera()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-semibold transition-colors">
                                 Kamerayı Başlat
                             </button>
                         </div>
@@ -60,36 +55,36 @@
                         </div>
                     </div>
                     
-                    <div class="mt-6 flex gap-4">
-                        <button x-show="streamActive && !capturedImage" @click="capture()" class="w-16 h-16 rounded-full bg-white border-4 border-slate-300 flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
-                            <div class="w-12 h-12 rounded-full bg-red-500"></div>
+                    <div class="mt-6 flex gap-3 w-full justify-center">
+                        <button x-show="streamActive && !capturedImage" @click="capture()" class="w-14 h-14 rounded-full bg-white border-4 border-slate-200 flex items-center justify-center shadow-lg hover:scale-105 transition-transform">
+                            <div class="w-10 h-10 rounded-full bg-red-500"></div>
                         </button>
                         
-                        <button x-show="capturedImage" @click="retake()" class="px-6 py-3 bg-slate-700 text-white rounded-xl font-bold hover:bg-slate-600 transition-colors">
-                            <i class="bi bi-arrow-counterclockwise"></i> Tekrar Dene
+                        <button x-show="capturedImage" @click="retake()" class="px-5 py-2.5 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors text-sm">
+                            <i class="bi bi-arrow-counterclockwise mr-1"></i> Tekrar
                         </button>
 
-                        <button x-show="capturedImage && !loading" @click="analyze()" class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg hover:shadow-purple-500/30 transition-all transform hover:-translate-y-1">
-                            <i class="bi bi-magic"></i> Analiz Et
+                        <button x-show="capturedImage && !loading" @click="analyze()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all shadow-lg shadow-indigo-500/20 text-sm">
+                            <i class="bi bi-search mr-1"></i> Analiz Et
                         </button>
                     </div>
                 </div>
 
                 <!-- UPLOAD MODE -->
                 <div x-show="mode === 'upload'" class="w-full h-full flex flex-col items-center justify-center">
-                     <div class="w-full aspect-[4/3] border-2 border-dashed border-slate-600 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-purple-500 hover:bg-purple-500/5 transition-all relative group overflow-hidden"
+                     <div class="w-full aspect-[4/3] border border-dashed border-slate-600 rounded-xl flex flex-col items-center justify-center cursor-pointer hover:border-indigo-500 hover:bg-indigo-500/5 transition-colors relative group overflow-hidden"
                           @click="$refs.fileInput.click()"
                           @dragover.prevent="dragging = true"
                           @dragleave.prevent="dragging = false"
                           @drop.prevent="handleDrop($event)"
-                          :class="dragging ? 'border-purple-500 bg-purple-500/10' : ''">
+                          :class="dragging ? 'border-indigo-500 bg-indigo-500/10' : ''">
                         
                         <input type="file" x-ref="fileInput" accept="image/*" class="hidden" @change="handleFileSelect($event)">
                         
                         <!-- Placeholder -->
-                        <div x-show="!capturedImage" class="text-center p-8">
-                            <i class="bi bi-image text-5xl text-slate-600 mb-4 group-hover:scale-110 transition-transform block"></i>
-                            <p class="text-slate-400 font-bold">Fotoğraf Seç veya Sürükle</p>
+                        <div x-show="!capturedImage" class="text-center p-6">
+                            <i class="bi bi-image text-4xl text-slate-600 mb-3 group-hover:text-slate-500 transition-colors block"></i>
+                            <p class="text-slate-400 font-semibold text-sm">Fotoğraf Seç veya Sürükle</p>
                         </div>
                         
                         <!-- Preview -->
@@ -98,8 +93,8 @@
                      </div>
 
                      <div class="mt-6" x-show="capturedImage && !loading">
-                        <button @click="analyze()" class="px-8 py-3 bg-gradient-to-r from-pink-500 to-purple-600 text-white rounded-xl font-bold hover:shadow-lg hover:shadow-purple-500/30 transition-all transform hover:-translate-y-1">
-                            <i class="bi bi-magic"></i> Analiz Et
+                        <button @click="analyze()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition-all shadow-lg shadow-indigo-500/20 text-sm">
+                            <i class="bi bi-search mr-1"></i> Analiz Et
                         </button>
                      </div>
                 </div>
@@ -107,57 +102,54 @@
             </div>
             
             <!-- Right: Results Area -->
-            <div class="bg-slate-800/50 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-2xl h-full min-h-[400px]">
-                <h2 class="text-xl font-bold text-white mb-6 flex items-center gap-2">
-                    <i class="bi bi-trophy-fill text-yellow-400"></i> Sonuçlar
+            <div class="bg-slate-800/50 backdrop-blur-sm border border-slate-700/50 rounded-2xl p-6 shadow-xl h-full min-h-[400px]">
+                <h2 class="text-lg font-bold text-white mb-6 flex items-center gap-2 pb-4 border-b border-slate-700">
+                    <i class="bi bi-list-stars text-indigo-400"></i> Sonuçlar
                 </h2>
                 
                 <!-- Loading State -->
                 <div x-show="loading" class="flex flex-col items-center justify-center h-64 text-center">
-                    <div class="relative w-20 h-20 mb-4">
-                        <div class="absolute inset-0 border-4 border-slate-700 rounded-full"></div>
-                        <div class="absolute inset-0 border-4 border-t-purple-500 rounded-full animate-spin"></div>
-                    </div>
-                    <p class="text-purple-400 font-bold animate-pulse">Yüzün taranıyor...</p>
-                    <p class="text-slate-500 text-sm mt-2">Veritabanındaki binlerce ünlü ile karşılaştırılıyor</p>
+                    <div class="w-8 h-8 border-2 border-slate-700 border-t-indigo-500 rounded-full animate-spin mb-3"></div>
+                    <p class="text-indigo-400 font-semibold text-sm animate-pulse">Analiz yapılıyor...</p>
+                    <p class="text-slate-500 text-xs mt-1">Veritabanı taranıyor</p>
                 </div>
                 
                 <!-- Empty State -->
                 <div x-show="!loading && results.length === 0" class="flex flex-col items-center justify-center h-64 text-center text-slate-500">
-                    <i class="bi bi-question-circle text-4xl mb-3 opacity-50"></i>
-                    <p>Henüz analiz yapılmadı.</p>
+                    <i class="bi bi-search text-3xl mb-3 opacity-20"></i>
+                    <p class="text-sm">Henüz analiz yapılmadı.</p>
                 </div>
                 
                 <!-- Results List -->
-                <div x-show="!loading && results.length > 0" class="space-y-4 animate-fade-in-up">
+                <div x-show="!loading && results.length > 0" class="space-y-3 animate-fade-in-up">
                     <template x-for="(match, index) in results" :key="index">
-                        <div class="bg-slate-700/50 rounded-xl p-4 flex items-center gap-4 hover:bg-slate-700 transition-colors border border-white/5 relative overflow-hidden">
+                        <div class="bg-slate-700/30 rounded-lg p-3 flex items-center gap-3 hover:bg-slate-700/50 transition-colors border border-slate-700/50 relative overflow-hidden group">
                             <!-- Rank Badge -->
-                            <div class="absolute top-0 left-0 bg-slate-800 px-2 py-1 rounded-br-lg text-xs font-bold text-slate-400 font-mono" x-text="'#' + (index + 1)"></div>
+                            <div class="absolute top-0 left-0 bg-slate-800 px-1.5 py-0.5 rounded-br text-[10px] font-bold text-slate-500 font-mono" x-text="'#' + (index + 1)"></div>
                             
                             <!-- Image -->
-                            <div class="w-16 h-16 rounded-full shrink-0 overflow-hidden ring-2 ring-white/10 relative">
+                            <div class="w-12 h-12 rounded-lg shrink-0 overflow-hidden ring-1 ring-white/10 relative bg-slate-800">
                                 <template x-if="match.image">
                                     <img :src="match.image" class="w-full h-full object-cover">
                                 </template>
                                 <template x-if="!match.image">
-                                    <div class="w-full h-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center text-xl font-bold" x-text="match.name[0]"></div>
+                                    <div class="w-full h-full bg-indigo-900 flex items-center justify-center text-sm font-bold text-indigo-200" x-text="match.name[0]"></div>
                                 </template>
                             </div>
                             
                             <!-- Info -->
                             <div class="flex-1 min-w-0">
                                 <div class="flex justify-between items-center mb-1">
-                                    <h3 class="font-bold text-lg text-white truncate" x-text="match.name"></h3>
-                                    <span class="text-xl font-bold font-mono" 
-                                          :class="index === 0 ? 'text-green-400' : 'text-slate-400'" 
+                                    <h3 class="font-bold text-sm text-white truncate" x-text="match.name"></h3>
+                                    <span class="text-xs font-bold font-mono" 
+                                          :class="index === 0 ? 'text-emerald-400' : 'text-slate-400'" 
                                           x-text="match.score + '%'"></span>
                                 </div>
                                 
                                 <!-- Progress Bar -->
-                                <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
-                                    <div class="h-full rounded-full transition-all duration-1000 ease-out bg-gradient-to-r"
-                                         :class="index === 0 ? 'from-green-500 to-emerald-400' : 'from-purple-500 to-blue-500'"
+                                <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                    <div class="h-full rounded-full transition-all duration-1000 ease-out"
+                                         :class="index === 0 ? 'bg-emerald-500' : 'bg-indigo-500'"
                                          :style="`width: ${match.score}%`"></div>
                                 </div>
                             </div>
