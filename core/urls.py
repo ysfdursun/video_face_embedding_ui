@@ -36,4 +36,5 @@ urlpatterns = [
     path('recognition/stream/<str:session_id>/', views.recognition_stream, name='recognition_stream'),
     path('recognition/status/', views.api_recognition_status, name='api_recognition_status'),
     path('recognition/stream/movie/<str:movie_filename>/', views.stream_video_recognition, name='stream_video_recognition_existing'),
+    path('recognition/enroll/', views.recognition_enroll_guest, name='recognition_enroll_guest'),
 ]

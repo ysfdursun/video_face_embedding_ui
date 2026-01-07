@@ -246,3 +246,35 @@ def api_search_movies(request):
     
     results = [{'id': m.id, 'title': m.title} for m in movies]
     return JsonResponse(results, safe=False)
+
+@csrf_exempt
+def recognition_enroll_guest(request):
+    """
+    API endpoint to enroll a guest as a permanent actor.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'POST required'}, status=405)
+        
+    try:
+        import json
+        data = json.loads(request.body)
+        
+        session_id = data.get('session_id')
+        guest_name = data.get('guest_name')
+        actor_name = data.get('actor_name')
+        movie_id = data.get('movie_id') # Optional
+        
+        if not all([session_id, guest_name, actor_name]):
+            return JsonResponse({'success': False, 'error': 'Missing fields'}, status=400)
+            
+        from core.services.enrollment_service import enroll_guest_as_actor
+        
+        result = enroll_guest_as_actor(session_id, guest_name, actor_name, movie_id)
+        
+        return JsonResponse(result)
+        
+    except json.JSONDecodeError:
+         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+

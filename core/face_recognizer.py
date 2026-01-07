@@ -426,21 +426,26 @@ class VideoFaceRecognizer:
                     current_results.append((face, name, score))
                     
                     if name.startswith("Misafir") and session_id:
-                        # Save Guest Snapshot
+                        # Save Guest Snapshot & Embedding
                         guest_dir = os.path.join(settings.MEDIA_ROOT, 'temp_faces', session_id)
                         os.makedirs(guest_dir, exist_ok=True)
                         guest_path = os.path.join(guest_dir, f"{name}.jpg")
+                        guest_npy_path = os.path.join(guest_dir, f"{name}.npy")
                         
-                        # Only save if not exists (first sighting)
-                        if not os.path.exists(guest_path):
-                            # Crop Face
-                            bbox = face.bbox.astype(int)
-                            x1, y1, x2, y2 = bbox
-                            h, w, _ = frame.shape
-                            x1 = max(0, x1); y1 = max(0, y1); x2 = min(w, x2); y2 = min(h, y2)
-                            if x2>x1 and y2>y1:
-                                face_img = frame[y1:y2, x1:x2]
-                                cv2.imwrite(guest_path, face_img)
+                        # Save if either missing (Robustness for re-runs)
+                        if not os.path.exists(guest_path) or not os.path.exists(guest_npy_path):
+                            # Save Embedding
+                            np.save(guest_npy_path, embedding)
+
+                            # Crop Face (only if missing)
+                            if not os.path.exists(guest_path):
+                                bbox = face.bbox.astype(int)
+                                x1, y1, x2, y2 = bbox
+                                h, w, _ = frame.shape
+                                x1 = max(0, x1); y1 = max(0, y1); x2 = min(w, x2); y2 = min(h, y2)
+                                if x2>x1 and y2>y1:
+                                    face_img = frame[y1:y2, x1:x2]
+                                    cv2.imwrite(guest_path, face_img)
 
                     # Update stats
                     self.stats[name] += 1
