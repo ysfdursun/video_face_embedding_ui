@@ -183,3 +183,72 @@ def _update_pkl_atomic(name, new_embedding):
     
     shutil.move(temp_path, PKL_PATH)
     print(f"✅ Updated PKL for {name}")
+
+def enroll_uploaded_image(actor_name, image_file):
+    """
+    Enrolls a directly uploaded image (Django File object).
+    1. Saves file to labeled_faces
+    2. Updates Actor DB
+    3. Extracts Embedding & Updates PKL
+    """
+    from core.services.face_service import save_actor_photo
+    from core.model_loader import load_recognizer, load_detector
+    
+    # 1. Save File
+    filename = save_actor_photo(actor_name, image_file)
+    if not filename:
+        return {'success': False, 'error': 'Failed to save file'}
+        
+    safe_actor_name = get_safe_filename(actor_name)
+    file_path = os.path.join(settings.MEDIA_ROOT, 'labeled_faces', safe_actor_name, filename)
+    
+    # 2. DB Update
+    try:
+        Actor.objects.get_or_create(name=actor_name)
+    except Exception as e:
+        print(f"DB Error: {e}")
+
+    # 3. Extract & Update PKL
+    try:
+        # Load models
+        detector = load_detector()
+        recognizer_model = load_recognizer()
+        
+        if not detector or not recognizer_model:
+             return {'success': True, 'warning': "Models stuck, saved file but PKL not updated."}
+             
+        import cv2
+        img = cv2.imread(file_path)
+        if img is None:
+             return {'success': True, 'warning': "Could not read saved file for PKL update."}
+             
+        # Detect
+        faces = detector.get(img)
+        if not faces:
+             # Try stricter alignment if detection fails? Or just skip PKL
+             return {'success': True, 'warning': "Face not valid for embedding (but saved)."}
+        
+        # Largest Face
+        faces.sort(key=lambda x: (x.bbox[2]-x.bbox[0]) * (x.bbox[3]-x.bbox[1]), reverse=True)
+        face = faces[0]
+        
+        # Align
+        lmk = face.kps
+        M = cv2.estimateAffinePartial2D(lmk, Config.REF_LANDMARKS, method=cv2.RANSAC)[0]
+        if M is None:
+             return {'success': True, 'warning': "Alignment failed for PKL."}
+        
+        aligned_face = cv2.warpAffine(img, M, Config.ALIGNED_FACE_SIZE)
+        
+        # Extract
+        embedding = recognizer_model.get_feat(aligned_face).flatten()
+        embedding = embedding / np.linalg.norm(embedding)
+        
+        # Update PKL
+        _update_pkl_atomic(actor_name, embedding)
+        
+        return {'success': True, 'filename': filename}
+        
+    except Exception as e:
+        print(f"Enroll Error: {e}")
+        return {'success': True, 'warning': f"Saved but PKL update failed: {e}"}

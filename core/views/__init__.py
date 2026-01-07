@@ -8,4 +8,6 @@ from .api_views import *
 from .movie_views import *
 from .settings_views import *
 from .recognition_views import *
+from .lookalike_views import *
+from .labeller_views import *
 

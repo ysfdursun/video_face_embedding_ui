@@ -334,6 +334,41 @@ class VideoFaceRecognizer:
             return f"Misafir-{new_guest_id}", 0.0 # Score 0 because it's new
 
         return "Unknown", best_score
+        
+    def find_nearest_neighbors(self, embedding, k=5):
+        """
+        Find top K matches for the embedding.
+        Returns list of tuples: (name, score)
+        """
+        if self.feature_matrix is None:
+            return []
+            
+        # Check against all knowns
+        scores = np.dot(self.feature_matrix, embedding)
+        
+        # Get top K indices
+        # np.argsort returns indices that sort the array. We want descending.
+        # This is full sort, can be slow for huge DBs. argpartition is faster but not sorted.
+        # For <100k, sort is fine.
+        top_indices = np.argsort(scores)[::-1][:k]
+        
+        results = []
+        seen_names = set()
+        
+        for idx in top_indices:
+            name = self.names_list[idx]
+            score = float(scores[idx])
+            
+            # Since we have multiple templates per person, we might get multiple hits for same person.
+            # We usually only want the best score per person.
+            if name not in seen_names:
+                results.append({'name': name, 'score': score})
+                seen_names.add(name)
+                
+            if len(results) >= k:
+                break
+                
+        return results
     
     def draw_results(self, frame, face, name, score):
         bbox = face.bbox.astype(int)

@@ -488,7 +488,7 @@ function recognitionStudio() {
             const guestName = actor.name;
             const defaultName = "Actor Name"; 
 
-            const newName = prompt(`Please enter the name for ${guestName}:`, defaultName);
+            const newName = prompt(`${guestName} için isim giriniz:`, defaultName);
             
             if (newName && newName !== defaultName && newName.trim() !== "") {
                 try {

@@ -1,0 +1,304 @@
+{% extends 'core/base.html' %}
+{% load static %}
+
+{% block title %}Fotoğraf Etiketle{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-slate-900 text-white" x-data="labellerApp()">
+
+    <!-- Header -->
+    <div class="bg-gradient-to-r from-blue-900 to-slate-900 border-b border-white/10 px-8 py-6 mb-8 text-center relative overflow-hidden">
+        <div class="relative z-10">
+            <h1 class="text-4xl font-extrabold text-white mb-2 tracking-tight">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 to-blue-500">Fotoğraf</span> Etiketleme Aracı
+            </h1>
+            <p class="text-slate-400 text-lg">Tek fotoğrafları analiz et, kalite kontrolünden geçir ve veritabanına ekle.</p>
+        </div>
+        
+        <!-- Decoration -->
+        <div class="absolute top-0 left-0 w-full h-full opacity-20 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+    </div>
+
+    <div class="container mx-auto px-4 pb-20 max-w-6xl">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+            
+            <!-- Left: Upload Area -->
+            <div class="bg-slate-800/50 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-2xl">
+                <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="bi bi-cloud-upload text-blue-400"></i> Fotoğraf Yükle
+                </h3>
+
+                <div class="w-full aspect-[4/3] border-2 border-dashed border-slate-600 rounded-2xl flex flex-col items-center justify-center cursor-pointer hover:border-blue-500 hover:bg-blue-500/5 transition-all relative group overflow-hidden"
+                     @click="$refs.fileInput.click()"
+                     @dragover.prevent="dragging = true"
+                     @dragleave.prevent="dragging = false"
+                     @drop.prevent="handleDrop($event)"
+                     :class="dragging ? 'border-blue-500 bg-blue-500/10' : ''">
+                    
+                    <input type="file" x-ref="fileInput" accept="image/*" class="hidden" @change="handleFileSelect($event)">
+                    
+                    <!-- Placeholder -->
+                    <div x-show="!capturedImage" class="text-center p-8">
+                        <i class="bi bi-person-bounding-box text-5xl text-slate-600 mb-4 group-hover:scale-110 transition-transform block"></i>
+                        <p class="text-slate-400 font-bold">Fotoğraf Seç veya Sürükle</p>
+                        <p class="text-xs text-slate-500 mt-2">Yüksek kaliteli, net bir yüz fotoğrafı yükleyin.</p>
+                    </div>
+                    
+                    <!-- Preview -->
+                    <div x-show="capturedImage" class="absolute inset-0 w-full h-full bg-black/50 flex items-center justify-center">
+                         <img :src="capturedImage" class="max-w-full max-h-full object-contain">
+                    </div>
+                    
+                    <!-- Reset Button -->
+                    <button x-show="capturedImage" @click.stop="reset()" class="absolute top-4 right-4 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition shadow-lg z-20">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Settings Panel -->
+                <div class="mb-6 bg-slate-700/30 p-4 rounded-xl border border-white/5">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+                        <i class="bi bi-sliders"></i> Hassasiyet Ayarları
+                    </h4>
+                    
+                    <!-- Detection Threshold -->
+                    <div class="mb-4">
+                        <div class="flex justify-between text-sm mb-1">
+                            <label class="text-slate-300">Yüz Tespit Eşiği</label>
+                            <span class="text-cyan-400 font-mono" x-text="settings.det_thresh"></span>
+                        </div>
+                        <input type="range" min="0.1" max="0.9" step="0.05" x-model="settings.det_thresh"
+                               class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        <p class="text-[10px] text-slate-500 mt-1">Düşük değer daha fazla (ama hatalı) yüz bulur.</p>
+                    </div>
+
+                    <!-- Min Blur -->
+                    <div>
+                        <div class="flex justify-between text-sm mb-1">
+                            <label class="text-slate-300">Minimum Netlik</label>
+                            <span class="text-cyan-400 font-mono" x-text="settings.min_blur"></span>
+                        </div>
+                        <input type="range" min="0" max="200" step="5" x-model="settings.min_blur"
+                               class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        <p class="text-[10px] text-slate-500 mt-1">Yüksek değer sadece çok net fotoğrafları kabul eder. (Vars: 80)</p>
+                    </div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button x-show="capturedImage && !loading" @click="analyze()" class="px-8 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-bold hover:shadow-lg hover:shadow-blue-500/30 transition-all transform hover:-translate-y-1 w-full flex justify-center items-center gap-2">
+                        <i class="bi bi-search"></i> Analiz Et
+                    </button>
+                    
+                    <!-- Loading State -->
+                    <button x-show="loading" disabled class="px-8 py-3 bg-slate-700 text-slate-400 rounded-xl font-bold w-full flex justify-center items-center gap-2 cursor-not-allowed">
+                        <div class="w-5 h-5 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                        İşleniyor...
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Right: Results & Enrollment -->
+            <div class="bg-slate-800/50 backdrop-blur-sm border border-white/10 rounded-3xl p-6 shadow-2xl h-full min-h-[500px] flex flex-col">
+                <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="bi bi-clipboard-data text-cyan-400"></i> Analiz Sonuçları
+                </h3>
+
+                <!-- Initial State -->
+                <div x-show="!results && !error" class="flex-1 flex flex-col items-center justify-center text-slate-500 opacity-50">
+                    <i class="bi bi-rulers text-6xl mb-4"></i>
+                    <p>Analiz sonuçları burada görünecek.</p>
+                </div>
+
+                <!-- Error State -->
+                <div x-show="error" class="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl mb-4 flex items-start gap-3 animate-fade-in-up">
+                    <i class="bi bi-exclamation-triangle-fill text-xl shrink-0"></i>
+                    <div>
+                        <h4 class="font-bold text-white">Analiz Başarısız</h4>
+                        <p x-text="error"></p>
+                    </div>
+                </div>
+
+                <!-- Results Content -->
+                <div x-show="results" class="animate-fade-in-up">
+                    
+                    <!-- Cropped Face Preview -->
+                    <div class="flex items-center gap-6 mb-8 bg-slate-900/50 p-4 rounded-2xl border border-white/5">
+                        <div class="w-24 h-24 rounded-xl overflow-hidden bg-black shrink-0 border-2 border-cyan-500/50">
+                            <img :src="results?.cropped_image" class="w-full h-full object-cover">
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-white text-lg">Tespit Edilen Yüz</h4>
+                            <div class="flex gap-2 mt-2">
+                                <span class="text-xs px-2 py-1 rounded bg-green-500/20 text-green-400 font-mono border border-green-500/30">Netlik: <span x-text="results?.quality.blur_score"></span></span>
+                                <span class="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-400 font-mono border border-blue-500/30">Duruş: İyi</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Matches Section -->
+                    <div class="mb-8">
+                        <h4 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">En İyi Eşleşmeler</h4>
+                        
+                        <template x-show="results?.matches.length > 0" x-for="match in results?.matches" :key="match.name">
+                            <div class="bg-slate-700/50 rounded-xl p-3 mb-2 flex items-center justify-between hover:bg-slate-700 transition cursor-pointer group"
+                                 @click="enroll(match.name)">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center font-bold text-sm" x-text="match.name[0]"></div>
+                                    <div>
+                                        <p class="font-bold text-white" x-text="match.name"></p>
+                                        <p class="text-xs text-slate-400">Mevcut Kayıt</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="font-mono font-bold text-cyan-400" x-text="match.score + '%'"></span>
+                                    <button class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition opacity-0 group-hover:opacity-100">
+                                        Seç
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <div x-show="results?.matches.length === 0" class="text-center py-4 text-slate-500 text-sm italic">
+                            Eşleşen kayıt bulunamadı.
+                        </div>
+                    </div>
+
+                    <!-- New Enrollment -->
+                    <div class="border-t border-white/10 pt-6">
+                        <h4 class="text-sm font-bold text-slate-400 uppercase tracking-wider mb-3">Yeni Kayıt Oluştur</h4>
+                        <div class="flex gap-2">
+                            <input type="text" x-model="newActorName" placeholder="Oyuncu Adı Giriniz..." 
+                                   class="bg-slate-900 border border-slate-700 text-white rounded-xl px-4 py-3 flex-1 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <button @click="enroll(newActorName)" 
+                                    :disabled="!newActorName"
+                                    class="bg-green-600 hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 rounded-xl font-bold transition">
+                                <i class="bi bi-plus-lg"></i> Ekle
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function labellerApp() {
+    return {
+        capturedImage: null,
+        uploadFile: null,
+        loading: false,
+        results: null,
+        error: null,
+        dragging: false,
+        newActorName: '',
+        settings: {
+            det_thresh: 0.5,
+            min_blur: 80
+        },
+
+        reset() {
+            this.capturedImage = null;
+            this.uploadFile = null;
+            this.results = null;
+            this.error = null;
+            this.newActorName = '';
+        },
+
+        handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) this.processFile(file);
+        },
+
+        handleDrop(e) {
+            this.dragging = false;
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) this.processFile(file);
+        },
+
+        processFile(file) {
+            this.reset();
+            this.uploadFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => this.capturedImage = e.target.result;
+            reader.readAsDataURL(file);
+        },
+
+        async analyze() {
+            if (!this.uploadFile) return;
+            
+            this.loading = true;
+            this.error = null;
+            this.results = null;
+            
+            const formData = new FormData();
+            formData.append('image', this.uploadFile);
+            formData.append('det_thresh', this.settings.det_thresh);
+            formData.append('min_blur', this.settings.min_blur);
+            
+            try {
+                const response = await fetch('{% url "core:api_analyze_photo" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    this.results = data;
+                } else {
+                    this.error = data.error;
+                }
+            } catch (e) {
+                console.error(e);
+                this.error = "Sunucu bağlantı hatası.";
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async enroll(name) {
+            if (!confirm(name + " için bu fotoğrafı kaydetmek istiyor musunuz?")) return;
+            
+            // To be implemented: Call API to enroll
+            // For now, pass image data or re-upload logic could be used. 
+            // Better: analyze API returns a temp ID, we use that ID to enrollment.
+            // Simplified: Re-send image or use base64.
+            
+            const formData = new FormData();
+            formData.append('name', name);
+            if (this.uploadFile) {
+                formData.append('image', this.uploadFile);
+            }
+            
+            try {
+                const response = await fetch('{% url "core:api_enroll_face" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Kayıt başarılı!');
+                    window.location.reload();
+                } else {
+                    alert('Hata: ' + data.error);
+                }
+            } catch (e) {
+                alert("İşlem hatası.");
+            }
+        }
+    }
+}
+</script>
+
+<style>
+    @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up { animation: fade-in-up 0.5s ease-out forwards; }
+</style>
+{% endblock %}

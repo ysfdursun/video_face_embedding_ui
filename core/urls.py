@@ -7,6 +7,11 @@ app_name = 'core'
 urlpatterns = [
     path('', views.welcome, name='welcome'),
     path('home/', views.home, name='home'),
+    
+    # Labeller / Photo Tool
+    path('labeller/', views.labeller_page, name='labeller_page'),
+    path('api/labeller/analyze/', views.api_analyze_photo, name='api_analyze_photo'),
+    path('api/labeller/enroll/', views.api_enroll_face, name='api_enroll_face'),
     path('settings/', views.settings_view, name='settings'),
     path('label/all/', views.label_all_faces, name='label_all_faces'),
     path('label/list/', views.list_unlabeled_faces, name='list_unlabeled_faces'),
@@ -37,4 +42,7 @@ urlpatterns = [
     path('recognition/status/', views.api_recognition_status, name='api_recognition_status'),
     path('recognition/stream/movie/<str:movie_filename>/', views.stream_video_recognition, name='stream_video_recognition_existing'),
     path('recognition/enroll/', views.recognition_enroll_guest, name='recognition_enroll_guest'),
+    # Lookalike
+    path('lookalike/', views.lookalike_page, name='lookalike_page'),
+    path('api/lookalike/analyze/', views.api_analyze_lookalike, name='api_analyze_lookalike'),
 ]

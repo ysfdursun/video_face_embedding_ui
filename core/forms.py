@@ -7,7 +7,8 @@ class VideoUploadForm(forms.Form):
         queryset=Movie.objects.all().order_by('title'),
         label="Film Adı",
         widget=forms.Select(attrs={'class': 'form-control'}),
-        empty_label="-- Film Seçin --"
+        empty_label="-- Film Seçin (Opsiyonel) --",
+        required=False
     )
     video_file = forms.FileField(
         label="Video Dosyası",

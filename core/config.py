@@ -20,7 +20,7 @@ class Config:
     # Default dataset (can be overridden)
     # Using a safe relative path or environment variable is better in production, 
     # but keeping user's preference here.
-    DATASET_DIR = r"C:\Users\hamza\OneDrive\Belgeler\GitHub\celebrity-face-recognition-project\Merged_Celebrity_Actors"
+    # DATASET_DIR = r"C:\Users\hamza\OneDrive\Belgeler\GitHub\celebrity-face-recognition-project\Merged_Celebrity_Actors"
     
     # Output subdirectories
     CROPPED_FACES_DIR = os.path.join(OUTPUT_DIR, "cropped_faces")

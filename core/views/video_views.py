@@ -23,7 +23,13 @@ def home(request):
         if form.is_valid():
             video_file = request.FILES['video_file']
             movie = form.cleaned_data['movie']
-            final_filename = save_uploaded_video(video_file, movie.title)
+            if movie:
+                movie_title = movie.title
+            else:
+                from datetime import datetime
+                movie_title = f"Upload_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            
+            final_filename = save_uploaded_video(video_file, movie_title)
             return redirect('core:processing_page', movie_filename=final_filename)
     else:
         form = VideoUploadForm()
