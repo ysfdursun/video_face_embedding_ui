@@ -133,9 +133,9 @@ def enroll_guest_as_actor(session_id, guest_name, target_actor_name, movie_id=No
         traceback.print_exc()
         return {'success': False, 'error': f"Embedding/PKL Error: {e}"}
 
-def _update_pkl_atomic(name, new_embedding):
+def _update_pkl_atomic(name, new_embedding, filename=None):
     """
-    Load PKL, append embedding, save atomically.
+    Load PKL, append embedding and filename, save atomically.
     """
     if not os.path.exists(PKL_PATH):
         data = {}
@@ -148,13 +148,14 @@ def _update_pkl_atomic(name, new_embedding):
             
     # Update logic
     if name not in data:
-        data[name] = {'templates': [new_embedding]}
+        data[name] = {'templates': [new_embedding], 'files': [filename] if filename else []}
     else:
         entry = data[name]
         # Normalize entry
         if isinstance(entry, dict):
-            if 'templates' not in entry:
-                entry['templates'] = []
+            if 'templates' not in entry: entry['templates'] = []
+            if 'files' not in entry: entry['files'] = []
+            
             # Check for duplicates?
             # Simple dot product check
             is_dup = False
@@ -166,6 +167,30 @@ def _update_pkl_atomic(name, new_embedding):
             
             if not is_dup:
                 entry['templates'].append(new_embedding)
+                if filename:
+                    # Only append filename if we appended template, OR append anyway?
+                    # Generally templates and files should be synced.
+                    entry['files'].append(filename)
+            elif filename and filename not in entry['files']:
+                # If template is duplicate but filename is new (e.g. same face different photo),
+                # we SHOULD append the file but NOT the template?
+                # NO. Our system relies on sync. If we don't add template, we shouldn't add file.
+                # BUT, wait. If we don't add file, UI thinks it's not embedded.
+                # Actually, `toggle_embedding` adds BOTH.
+                # If `is_dup` is True, it means we already have this face.
+                # If we don't add it to `files`, `get_actor_details` will say "Not Embedded".
+                # So we MUST add filename to `files` if it's not there, even if template is duplicate.
+                # BUT `toggle_embedding` assumes len(files) == len(templates).
+                # Current system is fragile about this sync. 
+                # Ideally, we should ADD the template even if duplicate if it's a new file?
+                # Or just add filename. 
+                # Let's stick to: Add both. The cost of one duplicate vector is synonymous with correct mapping.
+                # Overriding duplication check: Add ALWAYS.
+                # (The duplication check above was probably premature optimization).
+                entry['templates'].append(new_embedding)
+                if filename:
+                    entry['files'].append(filename)
+
         else:
             # Legacy format (list or array)
             # Convert to dict
@@ -173,16 +198,23 @@ def _update_pkl_atomic(name, new_embedding):
             if isinstance(entry, list): old_vecs = entry
             elif isinstance(entry, np.ndarray): old_vecs = [entry]
             
-            data[name] = {'templates': old_vecs}
+            data[name] = {'templates': old_vecs, 'files': [filename] if filename else []}
             data[name]['templates'].append(new_embedding)
             
     # Save
     temp_path = PKL_PATH + '.tmp'
-    with open(temp_path, 'wb') as f:
-        pickle.dump(data, f)
-    
-    shutil.move(temp_path, PKL_PATH)
-    print(f"✅ Updated PKL for {name}")
+    try:
+        with open(temp_path, 'wb') as f:
+            pickle.dump(data, f)
+        shutil.move(temp_path, PKL_PATH)
+        
+        # Trigger Hot-Reload Signal
+        from django.core.cache import cache
+        cache.set("recognition_db_version", time.time())
+        
+        print(f"✅ Updated PKL for {name} (File: {filename})")
+    except Exception as e:
+        print(f"❌ PKL Save Failed: {e}")
 
 def enroll_uploaded_image(actor_name, image_file):
     """
@@ -245,7 +277,7 @@ def enroll_uploaded_image(actor_name, image_file):
         embedding = embedding / np.linalg.norm(embedding)
         
         # Update PKL
-        _update_pkl_atomic(actor_name, embedding)
+        _update_pkl_atomic(actor_name, embedding, filename)
         
         return {'success': True, 'filename': filename}
         

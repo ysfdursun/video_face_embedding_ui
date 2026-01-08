@@ -198,10 +198,33 @@ def api_enroll_face(request):
     try:
         from core.services.enrollment_service import enroll_uploaded_image
         
-        if 'image' not in request.FILES:
-              return JsonResponse({'success': False, 'error': 'Fotoğraf dosyası eksik.'}, status=400)
-              
-        file = request.FILES['image']
+        file = None
+        
+        # Scenario 1: Multipart Upload (Direct File)
+        if 'image' in request.FILES:
+             file = request.FILES['image']
+             
+        # Scenario 2: JSON Body (Base64 from Labeller)
+        elif request.body:
+             try:
+                 import json
+                 data = json.loads(request.body)
+                 
+                 # If name wasn't in POST, check JSON
+                 if not name and 'name' in data:
+                     name = data['name']
+                     
+                 if 'image_b64' in data:
+                     # Convert Base64 -> ContentFile
+                     from django.core.files.base import ContentFile
+                     header, encoded = data['image_b64'].split(',', 1) if ',' in data['image_b64'] else ('', data['image_b64'])
+                     decoded = base64.b64decode(encoded)
+                     file = ContentFile(decoded, name=f"{name}_enroll.jpg")
+             except Exception as e:
+                 print(f"JSON Parse Error: {e}")
+                 
+        if not file:
+              return JsonResponse({'success': False, 'error': 'Fotoğraf dosyası eksik (File/JSON).'}, status=400)
         
         # Use centralized service that handles File + DB + PKL
         result = enroll_uploaded_image(name, file)
