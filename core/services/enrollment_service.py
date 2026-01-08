@@ -120,7 +120,7 @@ def enroll_guest_as_actor(session_id, guest_name, target_actor_name, movie_id=No
             embedding = embedding / np.linalg.norm(embedding)
         
         # Update PKL
-        _update_pkl_atomic(target_actor_name, embedding)
+        _update_pkl_atomic(target_actor_name, embedding, new_filename)
         
         return {
             'success': True, 
