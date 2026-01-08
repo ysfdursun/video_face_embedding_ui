@@ -195,11 +195,12 @@ class VideoFaceRecognizer:
         best_face_id = None
         best_score = -1.0 # Combined score
         
-        # Hyperparameters
-        iou_weight = 0.3
-        app_weight = 0.7
-        min_iou_gate = 0.1 # Must overlap at least a little
-        min_cosine_gate = 0.5 # Must look somewhat similar
+        # Hyperparameters (Relaxed for stability)
+        # Shift weight to IoU because position is reliable in short-term even if lookalike fails
+        iou_weight = 0.6      # Increased from 0.3
+        app_weight = 0.4      # Decreased from 0.7
+        min_iou_gate = 0.1    # Keep low, must overlap
+        min_cosine_gate = 0.3 # Lowered from 0.5 (Allow more appearance variation)
         
         for face_id, tracker in self.face_trackers.items():
             if frame_num - tracker['last_seen'] > 30: continue
@@ -229,7 +230,7 @@ class VideoFaceRecognizer:
                 best_face_id = face_id
                 
         # Threshold for assignment
-        if best_score > 0.4: # Tuned threshold
+        if best_score > 0.3: # Lowered from 0.4 for better stickiness
             self.face_trackers[best_face_id]['last_bbox'] = bbox
             self.face_trackers[best_face_id]['last_seen'] = frame_num
             return best_face_id
@@ -253,7 +254,10 @@ class VideoFaceRecognizer:
         buffer = self.face_trackers[face_id]['buffer']
         if not buffer: return None
         embeddings = list(buffer)
-        weights = np.exp(np.linspace(-1, 0, len(embeddings)))
+        # Exponential weighted moving average with sharper decay
+        # -1 to 0 gives e^-1 (0.36) weight to oldest
+        # -3 to 0 gives e^-3 (0.05) weight to oldest (Forgets bad frames faster)
+        weights = np.exp(np.linspace(-3, 0, len(embeddings)))
         weights /= weights.sum()
         smoothed = np.zeros_like(embeddings[0])
         for i, emb in enumerate(embeddings):
@@ -426,30 +430,47 @@ class VideoFaceRecognizer:
                     if face_h < self.min_face_size:
                          continue
                          
-                    # 2. Blur Check
-                    # We need to compute blur here if not computed yet
-                    # Extract aligned face for blur check first
-                    # Or check on raw crop? Let's use aligned for consistency with extractor
+                    # 2. Blur Check Matches Config
+                    # We use the quality scorer which internally calculates blur
+                    # But if we want to reject specifically on blur before complex calc:
                     
-                    # NOTE: Extracting embedding aligns face, so we do it there.
-                    # But to save time we should check blur BEFORE embedding.
-                    
-                    # Quick Blur Check on Raw Crop (Faster)
-                    if self.min_blur > 0:
-                        x1, y1, x2, y2 = bbox
-                        # Boundary checks
-                        h, w, _ = frame.shape
-                        x1 = max(0, x1); y1 = max(0, y1); x2 = min(w, x2); y2 = min(h, y2)
+                    # 3. HUMAN GEOMETRY CHECK (Anti-Animal)
+                    if Config.ENABLE_LANDMARK_CHECK:
+                        kps = face.kps
+                        left_eye = kps[0]
+                        right_eye = kps[1]
+                        eye_dist = np.linalg.norm(right_eye - left_eye)
+                        face_width = bbox[2] - bbox[0]
                         
-                        if x2-x1 > 10 and y2-y1 > 10:
-                            face_crop = frame[y1:y2, x1:x2]
-                            gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
-                            blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
-                            if blur_score < self.min_blur:
-                                continue
+                        if face_width > 0:
+                            eye_ratio = eye_dist / face_width
+                            # Use Config values
+                            min_ratio = getattr(Config, 'MIN_EYE_DISTANCE_RATIO', 0.20)
+                            max_ratio = getattr(Config, 'MAX_EYE_DISTANCE_RATIO', 0.65)
+                            
+                            if eye_ratio < min_ratio or eye_ratio > max_ratio:
+                                continue # Skip non-human face
 
-
+                    # 4. Global Quality Score (Includes Blur, Brightness, Pose)
                     q_res = self.quality_scorer.calculate(det_score=face.det_score, landmarks=face.kps)
+                    
+                    # Specific Blur Check from Scorer results if min_blur is set
+                    # Note: Scorer returns normalized 0-1 blur score, but min_blur user input is 0-500 variance.
+                    # So we should stick to raw variance for consistency with UI slider or convert.
+                    # Currently UI slider sends Variance (e.g. 100). Scorer uses internal Normalization.
+                    # Let's trust the unified score OR explicit variance check if critical.
+                    # For now, let's keep the explicit variance check if user provided it via UI slider params.
+                    if self.min_blur > 0:
+                         x1, y1, x2, y2 = bbox
+                         h, w, _ = frame.shape
+                         x1 = max(0, x1); y1 = max(0, y1); x2 = min(w, x2); y2 = min(h, y2)
+                         if x2>x1 and y2>y1:
+                             face_crop = frame[y1:y2, x1:x2]
+                             gray = cv2.cvtColor(face_crop, cv2.COLOR_BGR2GRAY)
+                             blur_val = cv2.Laplacian(gray, cv2.CV_64F).var()
+                             if blur_val < self.min_blur:
+                                 continue
+
                     if q_res['quality_score'] < self.min_quality_threshold: continue
                     embedding = self.extract_embedding(face, frame)
                     if embedding is None: continue

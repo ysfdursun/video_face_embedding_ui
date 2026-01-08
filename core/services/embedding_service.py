@@ -170,4 +170,19 @@ class EmbeddingService:
         
         return True, "Embedding zaten yoktu"
 
+    def delete_actor_embeddings(self, actor_name):
+        """
+        Removes all embeddings for an actor from the database.
+        Returns: (success, message)
+        """
+        db = self.load_db()
+        if actor_name in db:
+            try:
+                del db[actor_name]
+                self.save_db(db)
+                return True, f"'{actor_name}' veritabanından tamamen silindi."
+            except Exception as e:
+                return False, f"Silme hatası: {str(e)}"
+        return True, "Kayıt zaten yoktu."
+
 embedding_service = EmbeddingService()

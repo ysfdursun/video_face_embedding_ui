@@ -228,6 +228,13 @@ def delete_actor(name):
         if os.path.isdir(labeled_dir):
             shutil.rmtree(labeled_dir)
             
+        # Embedding DB Delete
+        try:
+            from core.services.embedding_service import embedding_service
+            embedding_service.delete_actor_embeddings(name)
+        except Exception:
+            pass # Non-critical if DB is missing
+            
         # Invalidate cache
         try:
             cache.incr("actors_list_version")
