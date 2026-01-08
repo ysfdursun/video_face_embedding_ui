@@ -240,6 +240,11 @@ def delete_actor(name):
             cache.incr("actors_list_version")
         except ValueError:
             cache.set("actors_list_version", 2)
+            
+        # Trigger Hot-Reload for Recognition Streams
+        import time
+        cache.set("recognition_db_version", time.time())
+        
         return True, None
     except Exception as e:
         return False, str(e)

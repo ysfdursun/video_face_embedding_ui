@@ -104,15 +104,29 @@ class EmbeddingService:
             # ADD
             self._ensure_models()
             
-            # Read Image
-            img = cv2.imread(full_path)
-            if img is None:
-                return False, False, "Görüntü okunamadı"
+            # Read Image (Unicode Safe for Windows)
+            try:
+                img_array = np.fromfile(full_path, np.uint8)
+                img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+            except Exception:
+                img = None
                 
-            # Detect
-            faces = self.detector.get(img)
+            if img is None:
+                return False, False, "Görüntü okunamadı (Dosya/Unicode hatası)"
+                
+            # Relax detection for manual addition (Trust user)
+            # Use Config value (Default: 0.1)
+            original_thresh = self.detector.det_thresh
+            manual_thresh = getattr(Config, 'MANUAL_ADD_THRESHOLD', 0.1)
+            self.detector.det_thresh = manual_thresh
+            
+            try:
+                faces = self.detector.get(img)
+            finally:
+                self.detector.det_thresh = original_thresh
+                
             if not faces:
-                return False, False, "Görüntüde yüz bulunamadı"
+                return False, False, f"Görüntüde yüz bulunamadı (Eşik: {manual_thresh})"
             
             # Use largest face
             face = max(faces, key=lambda f: (f.bbox[2]-f.bbox[0]) * (f.bbox[3]-f.bbox[1]))

@@ -78,6 +78,9 @@ class Config:
     # Pose filtering
     MAX_POSE_RATIO = 2.0          # Filter extreme poses (profile views)
     
+    # Validation
+    MANUAL_ADD_THRESHOLD = 0.1    # Threshold for manual photo additions (User override)
+    
     # Landmark quality
     ENABLE_LANDMARK_CHECK = True   # Check landmark positions
     MIN_EYE_DISTANCE_RATIO = 0.2   # Min eye distance / face width

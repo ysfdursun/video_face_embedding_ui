@@ -54,6 +54,22 @@ class VideoFaceRecognizer:
             print(f"🎯 Context Active: Restricting search to {len(self.target_identities)} cast members.")
         print("="*60)
         
+        self.load_database()
+        
+    def load_database(self):
+        """
+        Loads embeddings from pickle file.
+        Can be called dynamically to reload DB.
+        """
+        import time
+        from django.core.cache import cache
+        
+        # Track version
+        try:
+            self.loaded_version = float(cache.get("recognition_db_version", 0))
+        except:
+             self.loaded_version = 0
+
         # Load embeddings database from 'embeddings_all.pkl' (Rich) or 'avg_embeddings.pkl' (Simple)
         candidates = [
             'embeddings_all.pkl',
@@ -415,6 +431,16 @@ class VideoFaceRecognizer:
             if not ret: break
             frame_count += 1
             display_frame = frame.copy()
+            
+            
+            # --- Hot-Reload Check (Every 30 frames) ---
+            if frame_count % 30 == 0:
+                try:
+                    current_ver = float(cache.get("recognition_db_version", 0))
+                    if current_ver > self.loaded_version:
+                        print(f"🔄 Database update detected (v{current_ver}). Reloading...")
+                        self.load_database()
+                except: pass
             
             # --- Detection & Recognition ---
             if frame_count % stride == 1:
