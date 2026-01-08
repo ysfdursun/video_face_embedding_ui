@@ -64,6 +64,12 @@
                 </a>
              </li>
              <li>
+                <a href="{% url 'core:analysis_dashboard' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors {% if request.resolver_match.url_name == 'analysis_dashboard' %}bg-slate-800 text-white border-r-2 border-indigo-500{% endif %}">
+                   <i class="bi bi-graph-up text-lg transition-colors {% if request.resolver_match.url_name == 'analysis_dashboard' %}text-indigo-400{% else %}group-hover:text-white{% endif %}"></i>
+                   <span class="ms-3 text-sm font-medium">Model Analizi</span>
+                </a>
+             </li>
+             <li>
                 <a href="{% url 'core:labeller_page' %}" class="flex items-center px-4 py-3 text-slate-400 hover:bg-slate-800 hover:text-white group transition-colors {% if request.resolver_match.url_name == 'labeller_page' %}bg-slate-800 text-white border-r-2 border-cyan-500{% endif %}">
                    <i class="bi bi-crop text-lg transition-colors {% if request.resolver_match.url_name == 'labeller_page' %}text-cyan-400{% else %}group-hover:text-white{% endif %}"></i>
                    <span class="ms-3 text-sm font-medium">Fotoğraf Etiketle</span>

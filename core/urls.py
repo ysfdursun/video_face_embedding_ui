@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from django.urls import path
 from . import views
+from core.views import analysis_views
 
 app_name = 'core'
 
@@ -45,4 +46,7 @@ urlpatterns = [
     # Lookalike
     path('lookalike/', views.lookalike_page, name='lookalike_page'),
     path('api/lookalike/analyze/', views.api_analyze_lookalike, name='api_analyze_lookalike'),
+    # Analysis
+    path('analysis/', analysis_views.analysis_dashboard, name='analysis_dashboard'),
+    path('api/analysis/run/', analysis_views.api_run_analysis, name='api_run_analysis'),
 ]

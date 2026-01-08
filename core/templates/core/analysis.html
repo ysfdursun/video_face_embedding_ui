@@ -1,0 +1,318 @@
+{% extends 'core/base.html' %}
+
+{% block title %}Model Performance Analysis{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="analysisDashboard()">
+    <!-- Header & Controls -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 bg-slate-900 rounded-2xl border border-slate-800">
+        <div>
+            <h1 class="text-2xl font-bold text-white mb-1">Model Performans Analizi</h1>
+            <p class="text-slate-400 text-sm">Embedding kalitesi, ayrıştırıcılık (ROC/AUC) ve aykırı değer analizi.</p>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <div class="flex flex-col">
+                <label class="text-[10px] text-slate-500 font-bold uppercase">Min / Max Count</label>
+                <div class="flex items-center gap-2">
+                    <input type="number" x-model="minCount" min="0" class="w-20 bg-slate-800 border-slate-700 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2" placeholder="Min">
+                    <span class="text-slate-600">-</span>
+                    <input type="number" x-model="maxCount" min="0" class="w-20 bg-slate-800 border-slate-700 text-white text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 p-2" placeholder="Max">
+                </div>
+            </div>
+            
+            <button @click="runAnalysis()" 
+                    :disabled="loading"
+                    class="h-10 px-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="bi" :class="loading ? 'bi-arrow-repeat animate-spin' : 'bi-play-fill'"></i>
+                <span x-text="loading ? 'Analiz Ediliyor...' : 'Analizi Başlat'"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div x-show="loading" class="text-center py-20 animate-pulse">
+        <div class="inline-block w-16 h-16 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mb-4"></div>
+        <p class="text-slate-400 text-lg">Veriseti analiz ediliyor, bu işlem 5-10 saniye sürebilir...</p>
+    </div>
+
+    <!-- Error State -->
+    <div x-show="error" x-cloak class="p-4 bg-red-900/20 border border-red-800 rounded-xl text-red-200 flex items-center gap-3">
+        <i class="bi bi-exclamation-triangle-fill text-xl"></i>
+        <span x-text="error"></span>
+    </div>
+
+    <!-- Results Dashboard -->
+    <div x-show="!loading && hasData" x-cloak class="space-y-6">
+        
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <!-- EER -->
+            <div class="p-5 bg-slate-900 rounded-xl border border-slate-800 relative overflow-hidden group hover:border-indigo-500/50 transition-colors">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <i class="bi bi-shield-check text-4xl text-indigo-400"></i>
+                </div>
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Eşit Hata Oranı (EER)</p>
+                <div class="flex items-end gap-2">
+                    <span class="text-3xl font-bold text-white" x-text="formatPercent(data.stats.eer)"></span>
+                    <span class="text-xs text-slate-400 mb-1" x-text="'@ ' + data.stats.optimal_threshold.toFixed(2)"></span>
+                </div>
+            </div>
+
+            <!-- AUC -->
+            <div class="p-5 bg-slate-900 rounded-xl border border-slate-800 relative overflow-hidden group hover:border-emerald-500/50 transition-colors">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <i class="bi bi-graph-up text-4xl text-emerald-400"></i>
+                </div>
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">ROC AUC Puanı</p>
+                <div class="flex items-end gap-2">
+                    <span class="text-3xl font-bold text-white" x-text="data.stats.auc.toFixed(4)"></span>
+                    <span class="text-xs mb-1 px-1.5 py-0.5 rounded" 
+                          :class="data.stats.auc > 0.99 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'"
+                          x-text="data.stats.auc > 0.99 ? 'Mükemmel' : 'İyi'">
+                    </span>
+                </div>
+            </div>
+
+            <!-- Total Identities -->
+            <div class="p-5 bg-slate-900 rounded-xl border border-slate-800 relative overflow-hidden">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Analiz Edilen Kişiler</p>
+                <span class="text-3xl font-bold text-white" x-text="data.stats.total_identities"></span>
+                <p class="text-xs text-slate-400 mt-1" x-text="data.stats.intra_count + ' pozitif çift'"></p>
+            </div>
+            
+            <!-- Avg Qualities (Simulated from Stats) -->
+            <div class="p-5 bg-slate-900 rounded-xl border border-slate-800 relative overflow-hidden">
+                <p class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Ortalama Benzerlik (Pozitif)</p>
+                <span class="text-3xl font-bold text-emerald-400" x-text="data.stats.intra_mean.toFixed(3)"></span>
+                <p class="text-xs text-slate-400 mt-1">Negatif Ort: <span class="text-red-400" x-text="data.stats.inter_mean.toFixed(3)"></span></p>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Similarity Distribution -->
+            <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="bi bi-bar-chart-active text-indigo-400"></i>
+                    Benzerlik Dağılımı
+                </h3>
+                <div id="distChart" class="w-full h-80"></div>
+            </div>
+
+            <!-- ROC Curve -->
+            <div class="bg-slate-900 p-5 rounded-2xl border border-slate-800">
+                <h3 class="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <i class="bi bi-bezier2 text-pink-400"></i>
+                    ROC Eğrisi
+                </h3>
+                <div id="rocChart" class="w-full h-80"></div>
+            </div>
+        </div>
+
+        <!-- Outliers Table -->
+        <div class="bg-slate-900 rounded-2xl border border-slate-800 overflow-hidden">
+            <div class="p-5 border-b border-slate-800 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i class="bi bi-exclamation-triangle text-amber-400"></i>
+                    Potansiyel Aykırı Değerler (Tutarsız Yüzler)
+                </h3>
+                <span class="text-xs text-slate-500">En düşük benzerlik skoruna sahip kişiler</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-slate-400">
+                    <thead class="text-xs text-slate-500 uppercase bg-slate-900/50">
+                        <tr>
+                            <th class="px-6 py-3">Kişi Adı</th>
+                            <th class="px-6 py-3">Ort. Benzerlik (Tutarlılık)</th>
+                            <th class="px-6 py-3">Durum</th>
+                            <th class="px-6 py-3 text-right">İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        <template x-for="outlier in data.outliers" :key="outlier.person">
+                            <tr class="hover:bg-slate-800/50 transition-colors">
+                                <td class="px-6 py-4 font-medium text-white" x-text="outlier.person"></td>
+                                <td class="px-6 py-4">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-24 h-2 bg-slate-700 rounded-full overflow-hidden">
+                                            <div class="h-full bg-amber-500" :style="`width: ${outlier.avg_sim * 100}%`"></div>
+                                        </div>
+                                        <span class="font-mono text-amber-400" x-text="outlier.avg_sim.toFixed(3)"></span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2 py-1 text-xs rounded bg-red-500/10 text-red-400 border border-red-500/20">Riskli</span>
+                                </td>
+                                <td class="px-6 py-4 text-right">
+                                    <a :href="'/actors/' + outlier.person + '/'" target="_blank" class="text-indigo-400 hover:text-indigo-300 hover:underline">
+                                        İncele <i class="bi bi-box-arrow-up-right ms-1"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                        </template>
+                        <tr x-show="!data.outliers.length">
+                            <td colspan="4" class="px-6 py-8 text-center text-slate-500">
+                                Harika! Hiçbir şüpheli aykırı değer bulunamadı.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ApexCharts -->
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+<script>
+    document.addEventListener('alpine:init', () => {
+        Alpine.data('analysisDashboard', () => ({
+            loading: false,
+            hasData: false,
+            error: null,
+            minCount: 4,
+            maxCount: 100,
+            data: { stats: {}, outliers: [] },
+            distChart: null,
+            rocChart: null,
+
+            init() {
+                // Auto run on load if preferred, or wait for user
+                // this.runAnalysis();
+            },
+
+            formatPercent(val) {
+                return (val * 100).toFixed(2) + '%';
+            },
+
+            async runAnalysis() {
+                this.loading = true;
+                this.error = null;
+                
+                try {
+                    const url = `{% url 'core:api_run_analysis' %}?min_count=${this.minCount}&max_count=${this.maxCount}&reload=true`;
+                    const res = await fetch(url);
+                    const json = await res.json();
+                    
+                    if (!json.success) throw new Error(json.error || 'Analiz hatası');
+                    
+                    this.data = json.data;
+                    this.hasData = true;
+                    
+                    // Wait for DOM update then render charts
+                    this.$nextTick(() => {
+                        this.renderCharts();
+                    });
+
+                } catch (err) {
+                    console.error(err);
+                    this.error = err.message;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            renderCharts() {
+                // 1. Distribution Chart
+                if (this.distChart) this.distChart.destroy();
+                
+                const distOptions = {
+                    series: [{
+                        name: 'Aynı Kişi (Pozitif)',
+                        data: this.data.hist_intra
+                    }, {
+                        name: 'Farklı Kişiler (Negatif)',
+                        data: this.data.hist_inter
+                    }],
+                    chart: {
+                        type: 'area',
+                        height: 320,
+                        background: 'transparent',
+                        toolbar: { show: false },
+                        animations: { enabled: true }
+                    },
+                    colors: ['#10b981', '#ef4444'],
+                    fill: {
+                        type: 'gradient',
+                        gradient: { opacityFrom: 0.6, opacityTo: 0.1 }
+                    },
+                    dataLabels: { enabled: false },
+                    stroke: { curve: 'smooth', width: 2 },
+                    xaxis: {
+                        categories: this.data.hist_bins.map(b => b.toFixed(2)),
+                        labels: { style: { colors: '#94a3b8' } },
+                        tickAmount: 10
+                    },
+                    yaxis: {
+                        labels: { style: { colors: '#94a3b8' } },
+                        title: { text: 'Yoğunluk', style: { color: '#64748b' } }
+                    },
+                    grid: { borderColor: '#1e293b' },
+                    theme: { mode: 'dark' },
+                    legend: { position: 'top' }
+                };
+                
+                this.distChart = new ApexCharts(document.querySelector("#distChart"), distOptions);
+                this.distChart.render();
+
+                // 2. ROC Chart
+                if (this.rocChart) this.rocChart.destroy();
+                
+                // Downsample ROC data for performance if huge
+                const rocPoints = this.data.roc_data; // Array of {threshold, tpr, far}
+                // Construct series: x=FAR, y=TPR
+                // ApexCharts numeric xy needs specific format
+                // But simple line chart with category x-axis (FAR) is tricky if FAR isn't linear.
+                // Better to use XY scatter/line type.
+                
+                const rocSeriesData = rocPoints.map(p => [p.far, p.tpr]);
+                
+                // Add diagonal reference line
+                const diagonalData = [[0,0], [1,1]];
+
+                const rocOptions = {
+                    series: [{
+                        name: 'Model Performansı',
+                        data: rocSeriesData
+                    }, {
+                        name: 'Rastgele Tahmin',
+                        data: diagonalData,
+                        type: 'line',
+                        dashArray: 5
+                    }],
+                    chart: {
+                        type: 'line',
+                        height: 320,
+                        background: 'transparent',
+                        toolbar: { show: false }
+                    },
+                    colors: ['#6366f1', '#475569'],
+                    stroke: { width: [3, 2], curve: 'straight' },
+                    xaxis: {
+                        type: 'numeric',
+                        min: 0,
+                        max: 1,
+                        title: { text: 'Yanlış Kabul Oranı (FAR)', style: { color: '#94a3b8' } },
+                        labels: { style: { colors: '#94a3b8' }, formatter: (v) => v.toFixed(2) }
+                    },
+                    yaxis: {
+                        min: 0,
+                        max: 1,
+                        title: { text: 'Doğru Kabul Oranı (TPR)', style: { color: '#94a3b8' } },
+                        labels: { style: { colors: '#94a3b8' } }
+                    },
+                    grid: { borderColor: '#1e293b' },
+                    theme: { mode: 'dark' },
+                    tooltip: { theme: 'dark' }
+                };
+
+                this.rocChart = new ApexCharts(document.querySelector("#rocChart"), rocOptions);
+                this.rocChart.render();
+            }
+        }));
+    });
+</script>
+{% endblock %}
