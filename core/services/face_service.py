@@ -62,14 +62,32 @@ def list_unlabeled_faces_service():
     return unlabeled_faces
 
 def delete_single_face_file(face_path):
-    # Forward slash'i sistem path'ine çevir
-    face_path_parts = face_path.split('/')
-    full_path = os.path.join(settings.MEDIA_ROOT, *face_path_parts)
-    
-    if os.path.isfile(full_path):
-        os.remove(full_path)
-        return True
-    return False
+    """
+    Deletes a face file given its relative path.
+    Handles both forward and backslashes.
+    """
+    try:
+        # Normalize path separators
+        normalized_path = face_path.replace('\\', '/')
+        
+        # Remove leading slash if present
+        if normalized_path.startswith('/'):
+            normalized_path = normalized_path[1:]
+            
+        full_path = os.path.join(settings.MEDIA_ROOT, normalized_path)
+        full_path = os.path.normpath(full_path) # Normalize for OS
+        
+        if os.path.isfile(full_path):
+            os.remove(full_path)
+            # Also clean up from embedding DB is handled in view or here? 
+            # Ideally handled in view to keep concerns separate, checking in view.
+            return True
+        else:
+            print(f"[DELETE ERROR] File not found: {full_path}")
+            return False
+    except Exception as e:
+        print(f"[DELETE ERROR] Exception: {e}")
+        return False
 
 def get_movies_with_groups():
     grouped_dir = get_grouped_faces_dir()

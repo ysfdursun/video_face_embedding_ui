@@ -10,11 +10,25 @@ def get_actors_data(search_query=''):
     labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces')
     
     # Cache key
-    cache_key = f"actors_list_{search_query}"
+    version = cache.get("actors_list_version", 1)
+    cache_key = f"actors_list_v{version}_{search_query}"
     actors_data = cache.get(cache_key)
     
     if actors_data is None:
         actors_data = []
+        
+        # 1. Sync from DB to Filesystem
+        try:
+            from core.models import Actor
+            db_actors = Actor.objects.all()
+            for actor in db_actors:
+                actor_dir = os.path.join(labeled_dir, actor.name)
+                if not os.path.exists(actor_dir):
+                    os.makedirs(actor_dir, exist_ok=True)
+        except Exception as e:
+            print(f"DB Sync Error: {e}")
+
+        # 2. List from Filesystem
         if os.path.isdir(labeled_dir):
             # Optimize: Single os.listdir
             actor_folders = sorted([f for f in os.listdir(labeled_dir) 
@@ -27,11 +41,11 @@ def get_actors_data(search_query=''):
                 
                 actor_path = os.path.join(labeled_dir, actor_folder)
                 
-                # Optimize: os.listdir only for jpg
-                photos = [f for f in os.listdir(actor_path) if f.endswith('.jpg')]
+                # Optimize: os.listdir only for valid images
+                valid_extensions = ('.jpg', '.jpeg', '.png')
+                photos = [f for f in os.listdir(actor_path) if f.lower().endswith(valid_extensions)]
                 
-                if not photos:
-                    continue
+                # ALLOW empty actors (removed 'if not photos: continue')
                 
                 # Optimize: Movies set in one loop
                 movies_set = set()
@@ -48,7 +62,7 @@ def get_actors_data(search_query=''):
                 
                 if os.path.isdir(profile_photo_dir):
                     # Get first image file in the directory
-                    profile_images = [f for f in os.listdir(profile_photo_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                    profile_images = [f for f in os.listdir(profile_photo_dir) if f.lower().endswith(valid_extensions)]
                     if profile_images:
                         profile_photo_url = f"Selected_Profiles/{actor_folder}/{profile_images[0]}"
 
@@ -76,11 +90,19 @@ def get_actor_details(actor_name):
     if not os.path.isdir(labeled_dir):
         return None
     
-    photos = sorted([f for f in os.listdir(labeled_dir) if f.endswith('.jpg')])
+    valid_extensions = ('.jpg', '.jpeg', '.png')
+    photos = sorted([f for f in os.listdir(labeled_dir) if f.lower().endswith(valid_extensions)])
     
     movies_set = set()
     photo_data = []
     
+    # Embedding Status
+    try:
+        from core.services.embedding_service import embedding_service
+        embedded_files = embedding_service.get_actor_files(actor_name)
+    except Exception:
+        embedded_files = set()
+
     for photo in photos:
         # Movies set
         parts = photo.split('_')
@@ -92,6 +114,7 @@ def get_actor_details(actor_name):
         photo_data.append({
             'filename': photo,
             'path': f'labeled_faces/{actor_name}/{photo}',
+            'is_embedded': photo in embedded_files
         })
     
     movie_count = len(movies_set)
@@ -101,7 +124,7 @@ def get_actor_details(actor_name):
     profile_photo_url = None
     
     if os.path.isdir(profile_photo_dir):
-        profile_images = [f for f in os.listdir(profile_photo_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+        profile_images = [f for f in os.listdir(profile_photo_dir) if f.lower().endswith(valid_extensions)]
         if profile_images:
             profile_photo_url = f"Selected_Profiles/{actor_name}/{profile_images[0]}"
 
@@ -117,25 +140,36 @@ def get_actor_details(actor_name):
 
 def create_actor(name):
     """
-    Creates a new actor in the database and filesystem.
+    Creates a new actor or uses existing one (merging).
+    Standardizes name to lowercase snake_case (ad_soyad).
     """
     from core.models import Actor
     from core.utils.file_utils import get_safe_filename
     
-    safe_name = get_safe_filename(name)
+    # 1. Standardize Input: Lowercase and strip
+    # User requested: "standart şöyleydi ad_soyad gibisinde hepsi küçük harflerle"
+    normalized_name = name.strip().lower()
+    
+    safe_name = get_safe_filename(normalized_name)
     if not safe_name:
-        return None, "Invalid name"
+        return None, "Geçersiz isim"
         
     labeled_dir = os.path.join(settings.MEDIA_ROOT, 'labeled_faces', safe_name)
     
-    if Actor.objects.filter(name=safe_name).exists() or os.path.exists(labeled_dir):
-        return None, "Actor already exists"
-        
     try:
-        Actor.objects.create(name=safe_name)
-        os.makedirs(labeled_dir, exist_ok=True)
-        # Invalidate cache
-        cache.delete_pattern("actors_list_*")
+        # 2. DB: Get or Create (Merge logic)
+        actor, created = Actor.objects.get_or_create(name=safe_name)
+        
+        # 3. Filesystem: Ensure exists
+        if not os.path.exists(labeled_dir):
+            os.makedirs(labeled_dir, exist_ok=True)
+            
+        # 4. Cache Invalidation
+        try:
+            cache.incr("actors_list_version")
+        except ValueError:
+            cache.set("actors_list_version", 2)
+            
         return safe_name, None
     except Exception as e:
         return None, str(e)
@@ -195,7 +229,10 @@ def delete_actor(name):
             shutil.rmtree(labeled_dir)
             
         # Invalidate cache
-        cache.delete_pattern("actors_list_*")
+        try:
+            cache.incr("actors_list_version")
+        except ValueError:
+            cache.set("actors_list_version", 2)
         return True, None
     except Exception as e:
         return False, str(e)

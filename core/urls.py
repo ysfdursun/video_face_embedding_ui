@@ -36,6 +36,7 @@ urlpatterns = [
     path('api/processing-status/', views.ProcessingStatusAPI.as_view(), name='api_processing_status'),
     path('api/profile/update/', views.update_profile_photo, name='update_profile_photo'),
     path('api/profile/remove/', views.remove_profile_photo, name='remove_profile_photo'),
+    path('api/embedding/toggle/', views.toggle_embedding, name='toggle_embedding'),
     # Recognition
     path('recognition/', views.recognition_page, name='recognition_page'),
     path('recognition/upload/', views.recognition_upload, name='recognition_upload'),

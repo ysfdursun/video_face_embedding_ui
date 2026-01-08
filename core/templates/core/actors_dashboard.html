@@ -5,7 +5,7 @@
 
 {% block content %}
 
-<div class="min-h-screen bg-slate-50 py-8">
+<div class="min-h-screen bg-slate-50 py-8" x-data="{ showModal: false, newActorName: '' }">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <!-- Modern Header & Stats -->
@@ -73,7 +73,7 @@
         </div>
     
     <!-- Add Actor Button Modal Logic -->
-    <div x-data="{ showModal: false, newActorName: '' }">
+    <div>
         <!-- Create Actor Modal -->
         <div x-show="showModal" style="display: none;" 
             class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 px-4">
@@ -83,7 +83,7 @@
                     class="w-full px-4 py-2 border-2 border-slate-200 rounded-lg mb-4 focus:border-indigo-500 font-medium">
                 <div class="flex justify-end gap-2">
                     <button @click="showModal = false" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">İptal</button>
-                    <button @click="createActor(newActorName); showModal = false" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium font-medium">Oluştur</button>
+                    <button @click="createActor(newActorName).then(ok => { if(ok) showModal = false })" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium font-medium">Oluştur</button>
                 </div>
             </div>
         </div>
@@ -221,20 +221,54 @@
 </div>
 
 <script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
 function createActor(name) {
-    if (!name) return;
-    fetch('{% url "core:api_create_actor" %}', {
+    if (!name.trim()) {
+        alert("Lütfen oyuncu adı giriniz.");
+        return Promise.resolve(false);
+    }
+    
+    return fetch('{% url "core:api_create_actor" %}', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
         body: JSON.stringify({name: name})
     })
-    .then(res => res.json())
+    .then(res => {
+        if (!res.ok) {
+            return res.json().then(err => { throw new Error(err.message || 'Sunucu hatası'); });
+        }
+        return res.json();
+    })
     .then(data => {
         if (data.success) {
             window.location.reload();
+            return true;
         } else {
             alert(data.message);
+            return false;
         }
+    })
+    .catch(error => {
+        console.error("Create error:", error);
+        alert("Oluşturma hatası: " + error.message);
+        return false;
     });
 }
 
@@ -243,7 +277,10 @@ function deleteActor(name) {
     
     fetch('{% url "core:api_delete_actor" %}', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
         body: JSON.stringify({name: name})
     })
     .then(res => res.json())
@@ -259,6 +296,10 @@ function deleteActor(name) {
         } else {
             alert(data.message);
         }
+    })
+    .catch(error => {
+        console.error("Delete error:", error);
+        alert("Silme hatası: " + error.message);
     });
 }
 </script>

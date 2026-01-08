@@ -67,46 +67,66 @@
                 </h5>
             </div>
             <div class="p-6">
-                {% if photos %}
+                <!-- Toolbar (Always Visible) -->
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex gap-2">
-                        <label for="photoUpload" class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors cursor-pointer">
+                        <label for="photoUpload" class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-colors cursor-pointer shadow-sm">
                             <i class="bi bi-plus-circle"></i>Fotoğraf Ekle
                         </label>
-                        <input type="file" id="photoUpload" accept="image/*" multiple class="hidden">
+                        <input type="file" id="photoUpload" accept="image/*" multiple class="hidden" onchange="uploadPhotos(this)">
                     </div>
+                    {% if photos %}
                     <span class="text-sm text-slate-600">{{ photos|length }} Fotoğraf</span>
+                    {% endif %}
                 </div>
+
+                {% if photos %}
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {% for photo in photos %}
-                    <div class="relative photo-item group cursor-pointer" 
-                         onclick="openImageModal('{{ MEDIA_URL }}{{ photo.path }}', '{{ display_name }}')"
-                         data-photo-path="{{ photo.path }}">
+                    <div class="relative photo-item group" x-data="photoCard('{{ photo.path }}', '{{ actor_name }}', {{ photo.is_embedded|yesno:'true,false' }})">
                         <img src="{{ MEDIA_URL }}{{ photo.path }}" 
                              alt="{{ display_name }}"
                              class="w-full aspect-square object-cover rounded-lg shadow-sm group-hover:shadow-md transition-all group-hover:scale-105"
-                             loading="lazy">
+                             loading="lazy"
+                             @click="openImageModal('{{ MEDIA_URL }}{{ photo.path }}', '{{ display_name }}')">
                         
-                        <!-- Hover Overlay -->
-                        <div class="absolute inset-0 bg-black bg-opacity-50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                            <div class="text-center text-white flex flex-col gap-2">
+                        <!-- Status Indicator (Embedded) -->
+                        <div x-show="embedded" class="absolute top-2 right-2 w-3 h-3 bg-green-500 rounded-full border-2 border-white shadow-sm z-10" title="Veritabanında Kayıtlı"></div>
+
+                        <!-- Hover Overlay with Actions -->
+                        <div class="absolute inset-0 bg-black/60 rounded-lg flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity gap-3">
+                            
+                            <!-- View -->
+                            <button @click="openImageModal('{{ MEDIA_URL }}{{ photo.path }}', '{{ display_name }}')" 
+                                    class="text-white hover:text-sky-400 transition-colors" title="Büyüt">
                                 <i class="bi bi-eye text-2xl"></i>
-                                <div class="flex gap-2 justify-center" onclick="event.stopPropagation();">
-                                    <button onclick="deletePhoto('{{ photo.path }}', '{{ actor_name }}')" 
-                                            class="px-2 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors"
-                                            title="Fotoğrafı sil">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </div>
+                            </button>
+
+                            <div class="flex gap-2">
+                                <!-- Embedding Toggle -->
+                                <button @click="toggle()"
+                                        class="w-8 h-8 rounded-full flex items-center justify-center transition-colors border border-white/20"
+                                        :class="embedded ? 'bg-amber-500/20 text-amber-400 hover:bg-amber-500 hover:text-white' : 'bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white'"
+                                        :title="embedded ? 'Veritabanından Çıkar' : 'Veritabanına Ekle'">
+                                    <i class="bi" :class="loading ? 'bi-hourglass-split animate-pulse' : (embedded ? 'bi-database-dash' : 'bi-database-add')"></i>
+                                </button>
+
+                                <!-- Delete -->
+                                <button onclick="deletePhoto('{{ photo.path }}', '{{ actor_name }}')" 
+                                        class="w-8 h-8 rounded-full bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white flex items-center justify-center transition-colors border border-white/20"
+                                        title="Fotoğrafı Sil">
+                                    <i class="bi bi-trash"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
                     {% endfor %}
                 </div>
                 {% else %}
-                <div class="bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 py-12 text-center">
-                    <i class="bi bi-image text-slate-400 text-4xl mb-4 block"></i>
-                    <h5 class="font-semibold text-slate-900 mb-2">Fotoğraf Bulunamadı</h5>
+                <div class="bg-slate-50 rounded-lg border-2 border-dashed border-slate-300 py-12 text-center group hover:bg-slate-100 transition-colors cursor-pointer" onclick="document.getElementById('photoUpload').click()">
+                    <i class="bi bi-cloud-upload text-slate-400 text-5xl mb-4 block group-hover:text-green-500 transition-colors"></i>
+                    <h5 class="font-semibold text-slate-900 mb-2">Henüz fotoğraf yok</h5>
+                    <p class="text-slate-500 text-sm">Fotoğraf yüklemek için tıklayın veya sürükleyin</p>
                 </div>
                 {% endif %}
             </div>
@@ -335,5 +355,42 @@ function removeProfilePhoto() {
         alert('Silme sırasında hata oluştu');
     });
 }
+// Photo Card Component
+document.addEventListener('alpine:init', () => {
+    Alpine.data('photoCard', (photoPath, actorName, initialEmbedded) => ({
+        embedded: initialEmbedded,
+        loading: false,
+
+        async toggle() {
+            if (this.loading) return;
+            this.loading = true;
+            
+            try {
+                const formData = new FormData();
+                formData.append('actor_name', actorName);
+                formData.append('photo_path', photoPath);
+                
+                const res = await fetch('{% url "core:toggle_embedding" %}', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') },
+                    body: formData
+                });
+                
+                const data = await res.json();
+                if (data.success) {
+                    this.embedded = data.is_embedded;
+                    // Optional: Show toast or feedback
+                } else {
+                    alert('Hata: ' + data.message);
+                }
+            } catch (e) {
+                console.error(e);
+                alert('İşlem sırasında hata oluştu.');
+            } finally {
+                this.loading = false;
+            }
+        }
+    }));
+});
 </script>
 {% endblock %}

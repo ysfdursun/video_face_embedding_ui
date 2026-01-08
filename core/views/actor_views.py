@@ -105,3 +105,32 @@ def remove_profile_photo(request):
         except Exception as e:
             return JsonResponse({'success': False, 'message': f'Hata: {str(e)}'})
     return JsonResponse({'success': False, 'message': 'Geçersiz istek'})
+
+def toggle_embedding(request):
+    """Toggle embedding status for a specific photo"""
+    if request.method == 'POST':
+        actor_name = request.POST.get('actor_name')
+        photo_path = request.POST.get('photo_path')
+        
+        if not actor_name or not photo_path:
+            return JsonResponse({'success': False, 'message': 'Eksik parametre'})
+            
+        try:
+            from core.services.embedding_service import embedding_service
+            
+            # photo_path comes like 'labeled_faces/Name/img.jpg', normalize relative to MEDIA_ROOT
+            # Actually, the service expects 'labeled_faces/Name/img.jpg' if that's what we pass
+             
+            success, new_status, message = embedding_service.toggle_embedding(actor_name, photo_path)
+            
+            return JsonResponse({
+                'success': success,
+                'is_embedded': new_status,
+                'message': message
+            })
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return JsonResponse({'success': False, 'message': f'Hata: {str(e)}'})
+            
+    return JsonResponse({'success': False, 'message': 'Geçersiz istek'})

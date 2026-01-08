@@ -22,7 +22,25 @@ def delete_single_face(request):
     if request.method == 'POST':
         face_path = request.POST.get('face_path')
         if face_path:
-            # Service call
+            # 1. Try to remove embedding first (if labeled)
+            try:
+                # Parse actor name from path like 'labeled_faces/ActorName/File.jpg'
+                norm_path = face_path.replace('\\', '/')
+                parts = norm_path.split('/')
+                # If labeled face, actor name is usually the parent folder
+                if 'labeled_faces' in parts:
+                    try:
+                        idx = parts.index('labeled_faces')
+                        if idx + 2 < len(parts):
+                            actor_name = parts[idx+1]
+                            from core.services.embedding_service import embedding_service
+                            embedding_service.remove_embedding(actor_name, face_path)
+                    except ValueError:
+                        pass
+            except Exception as e:
+                print(f"Embedding removal error: {e}")
+
+            # 2. Delete File
             if face_service.delete_single_face_file(face_path):
                 return JsonResponse({'success': True})
             else:
