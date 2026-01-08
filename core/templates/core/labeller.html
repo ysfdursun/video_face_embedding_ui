@@ -68,6 +68,17 @@
                         <p class="text-[10px] text-slate-400 mt-1">Düşük değer daha fazla (ama hatalı) yüz bulur.</p>
                     </div>
 
+                    <!-- Min Face Size -->
+                    <div class="mb-4">
+                        <div class="flex justify-between text-sm mb-1">
+                            <label class="text-slate-300">Min Yüz Boyutu</label>
+                            <span class="text-cyan-400 font-mono" x-text="settings.min_face_size + 'px'"></span>
+                        </div>
+                        <input type="range" min="20" max="200" step="5" x-model="settings.min_face_size"
+                               class="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-cyan-500">
+                        <p class="text-[10px] text-slate-400 mt-1">Küçük yüzler için değeri düşürün (Vars: 50)</p>
+                    </div>
+
                     <!-- Min Blur -->
                     <div>
                         <div class="flex justify-between text-sm mb-1">
@@ -192,7 +203,8 @@ function labellerApp() {
         newActorName: '',
         settings: {
             det_thresh: 0.5,
-            min_blur: 80
+            min_blur: 80,
+            min_face_size: 50
         },
 
         reset() {
@@ -233,6 +245,7 @@ function labellerApp() {
             formData.append('image', this.uploadFile);
             formData.append('det_thresh', this.settings.det_thresh);
             formData.append('min_blur', this.settings.min_blur);
+            formData.append('min_face_size', this.settings.min_face_size);
             
             try {
                 const response = await fetch('{% url "core:api_analyze_photo" %}', {

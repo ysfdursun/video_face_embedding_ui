@@ -60,6 +60,7 @@ def api_analyze_photo(request):
     # Custom Settings (Optional override)
     det_thresh = float(request.POST.get('det_thresh', 0.5))
     min_blur = float(request.POST.get('min_blur', Config.MIN_BLUR_SCORE))
+    min_face_size = int(request.POST.get('min_face_size', Config.MIN_FACE_SIZE))
     
     # 2. Hybrid Detection Strategy
     recognizer = get_labeller_recognizer()
@@ -125,8 +126,8 @@ def api_analyze_photo(request):
     box = face.bbox.astype(int)
     w_box, h_box = box[2] - box[0], box[3] - box[1]
     
-    if w_box < Config.MIN_FACE_SIZE or h_box < Config.MIN_FACE_SIZE:
-        return JsonResponse({'success': False, 'error': f'Yüz çok küçük ({w_box}x{h_box}). Min {Config.MIN_FACE_SIZE}px gerekli.'}, status=400)
+    if w_box < min_face_size or h_box < min_face_size:
+        return JsonResponse({'success': False, 'error': f'Yüz çok küçük ({w_box}x{h_box}). Min {min_face_size}px gerekli.'}, status=400)
 
     # Blur Check
     # Crop for blur check

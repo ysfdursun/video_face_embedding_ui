@@ -150,11 +150,19 @@ class CastManageAPI(View):
 
 class ActorSearchAPI(View):
     def get(self, request):
+        from django.db.models import Q
         query = request.GET.get('q', '').strip()
         if not query:
             return JsonResponse({'results': []})
         
-        actors = Actor.objects.filter(name__icontains=query)[:20]
+        # Robust Search: Check raw query OR query with spaces replaced by underscores
+        normalized_query = query.replace(' ', '_')
+        
+        actors = Actor.objects.filter(
+            Q(name__icontains=query) | 
+            Q(name__icontains=normalized_query)
+        )[:20]
+        
         return JsonResponse({
             'results': [actor.name for actor in actors]
         })
