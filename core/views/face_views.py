@@ -17,11 +17,15 @@ def list_unlabeled_faces(request):
     }
     return render(request, 'core/list_unlabeled.html', context)
 
+@csrf_exempt
 def delete_single_face(request):
     """AJAX ile tek bir fotoğrafı sil"""
     if request.method == 'POST':
-        face_path = request.POST.get('face_path')
-        if face_path:
+        try:
+            face_path = request.POST.get('face_path')
+            if not face_path:
+                 return JsonResponse({'success': False, 'message': 'face_path eksik'})
+
             # 1. Try to remove embedding first (if labeled)
             try:
                 # Parse actor name from path like 'labeled_faces/ActorName/File.jpg'
@@ -39,13 +43,20 @@ def delete_single_face(request):
                         pass
             except Exception as e:
                 print(f"Embedding removal error: {e}")
+                # Don't stop deletion if embedding removal fails
 
             # 2. Delete File
+            # Ensure face_service is loaded
+            from core.services import face_service
             if face_service.delete_single_face_file(face_path):
                 return JsonResponse({'success': True})
             else:
-                return JsonResponse({'success': False, 'message': 'Dosya bulunamadı'})
-        return JsonResponse({'success': False, 'message': 'face_path eksik'})
+                return JsonResponse({'success': False, 'message': 'Dosya silinemedi veya bulunamadı'})
+        except Exception as e:
+             import traceback
+             traceback.print_exc()
+             return JsonResponse({'success': False, 'message': f'Sunucu Hatası: {str(e)}'})
+
     return JsonResponse({'success': False, 'message': 'Geçersiz istek'})
 
 def label_all_faces(request):

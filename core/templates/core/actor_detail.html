@@ -83,7 +83,7 @@
                 {% if photos %}
                 <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                     {% for photo in photos %}
-                    <div class="relative photo-item group" x-data="photoCard('{{ photo.path }}', '{{ actor_name }}', {{ photo.is_embedded|yesno:'true,false' }})">
+                    <div class="relative photo-item group" x-data="photoCard('{{ photo.path }}', '{{ actor_name }}', {{ photo.is_embedded|yesno:'true,false' }})" data-photo-path="{{ photo.path }}">
                         <img src="{{ MEDIA_URL }}{{ photo.path }}" 
                              alt="{{ display_name }}"
                              class="w-full aspect-square object-cover rounded-lg shadow-sm group-hover:shadow-md transition-all group-hover:scale-105"

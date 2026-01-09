@@ -2,7 +2,9 @@ import os
 import pickle
 import numpy as np
 import cv2
+import time
 from django.conf import settings
+from django.core.cache import cache
 from core.config import Config
 from core.model_loader import load_all_models
 
@@ -19,7 +21,7 @@ class EmbeddingService:
 
     def _ensure_models(self):
         if self.detector is None or self.recognizer is None:
-            self.detector, self.recognizer = load_all_models()
+             self.detector, self.recognizer = load_all_models()
 
     def load_db(self):
         if not os.path.exists(self.db_path):
@@ -35,6 +37,10 @@ class EmbeddingService:
         try:
             with open(self.db_path, 'wb') as f:
                 pickle.dump(db, f)
+            
+            # Helper to trigger Hot-Reload
+            cache.set("recognition_db_version", time.time())
+            print("✅ DB Saved & Hot-Reload Triggered")
             return True
         except Exception as e:
             print(f"Error saving DB: {e}")
@@ -125,8 +131,75 @@ class EmbeddingService:
             finally:
                 self.detector.det_thresh = original_thresh
                 
+            # Fallback: Enhance image if no face found
             if not faces:
-                return False, False, f"Görüntüde yüz bulunamadı (Eşik: {manual_thresh})"
+                # Try CLAHE (Contrast Limited Adaptive Histogram Equalization)
+                try:
+                    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+                    l, a, b = cv2.split(lab)
+                    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+                    cl = clahe.apply(l)
+                    limg = cv2.merge((cl,a,b))
+                    enhanced = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+                    
+                    # Retry detection with VERY low threshold
+                    self.detector.det_thresh = 0.05
+                    faces = self.detector.get(enhanced)
+                except Exception as e:
+                    print(f"Fallback detection failed: {e}")
+                finally:
+                    self.detector.det_thresh = original_thresh
+
+            # Fallback 2: Upscale Image (for small crops)
+            if not faces:
+                try:
+                    h, w = img.shape[:2]
+                    scale = 640 / max(h, w)
+                    if scale > 1.0: # Only upscale if smaller than 640
+                        upscaled = cv2.resize(img, (0, 0), fx=scale, fy=scale)
+                        self.detector.det_thresh = 0.05
+                        faces_up = self.detector.get(upscaled)
+                        
+                        if faces_up:
+                            # We need to scale back the bbox and landmarks to original image coordinates
+                            face = max(faces_up, key=lambda f: (f.bbox[2]-f.bbox[0]) * (f.bbox[3]-f.bbox[1]))
+                            face.bbox = face.bbox / scale
+                            face.kps = face.kps / scale
+                            faces = [face]
+                except Exception as e:
+                    print(f"Upscale detection failed: {e}")
+                finally:
+                    self.detector.det_thresh = original_thresh
+
+            # Fallback 3: Add Padding (Zoom Out effect)
+            # Useful if the face fills the entire frame (extreme close-up)
+            if not faces:
+                try:
+                    h, w = img.shape[:2]
+                    pad_h = int(h * 0.25) # Add 25% padding
+                    pad_w = int(w * 0.25)
+                    padded = cv2.copyMakeBorder(img, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_CONSTANT, value=[128,128,128])
+                    
+                    self.detector.det_thresh = 0.05
+                    faces_pad = self.detector.get(padded)
+                    
+                    if faces_pad:
+                        # Map coordinates back
+                        face = max(faces_pad, key=lambda f: (f.bbox[2]-f.bbox[0]) * (f.bbox[3]-f.bbox[1]))
+                        face.bbox[0] -= pad_w
+                        face.bbox[1] -= pad_h
+                        face.bbox[2] -= pad_w
+                        face.bbox[3] -= pad_h
+                        face.kps[:, 0] -= pad_w
+                        face.kps[:, 1] -= pad_h
+                        faces = [face]
+                except Exception as e:
+                    print(f"Padding detection failed: {e}")
+                finally:
+                    self.detector.det_thresh = original_thresh
+
+            if not faces:
+                return False, False, f"Görüntüde yüz bulunamadı (Eşik: {manual_thresh}, Upscale ve Padding denenmesine rağmen)"
             
             # Use largest face
             face = max(faces, key=lambda f: (f.bbox[2]-f.bbox[0]) * (f.bbox[3]-f.bbox[1]))
