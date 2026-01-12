@@ -195,19 +195,28 @@ def delete_movie_groups_service(movie_name):
     return False
 
 def save_actor_photo(actor_name, photo_file):
-    actor_dir = os.path.join(get_labeled_faces_dir(), actor_name)
-    os.makedirs(actor_dir, exist_ok=True)
+    """
+    Saves an actor photo and ensures it is embedded and triggers a reload.
+    """
+    from core.services.enrollment_service import enroll_uploaded_image
     
-    ext = os.path.splitext(photo_file.name)[1]
-    filename = f"{int(time.time() * 1000)}{ext}"
-    file_path = os.path.join(actor_dir, filename)
+    # Use the robust enrollment service which handles:
+    # 1. Saving to labeled_faces
+    # 2. Updating Actor DB
+    # 3. Extracting Embedding
+    # 4. Updating PKL & Triggering Hot-Reload
     
-
-    with open(file_path, 'wb+') as destination:
-        for chunk in photo_file.chunks():
-            destination.write(chunk)
-            
-    return filename
+    result = enroll_uploaded_image(actor_name, photo_file)
+    
+    if result.get('success'):
+        return result.get('filename')
+    else:
+        # If enrollment fails (e.g. no face found), we might still want to save the file 
+        # for manual review, but for now let's raise error so UI knows.
+        # Or better: check if result has 'filename' even if warning.
+        if result.get('filename'):
+             return result.get('filename')
+        raise Exception(result.get('error', 'Enrollment failed'))
 
 def sync_face_groups(movie_name):
     """

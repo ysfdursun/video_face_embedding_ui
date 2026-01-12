@@ -210,9 +210,10 @@ def _update_pkl_atomic(name, new_embedding, filename=None):
         
         # Trigger Hot-Reload Signal
         from django.core.cache import cache
-        cache.set("recognition_db_version", time.time())
+        # Set timeout to None (forever) so it doesn't expire and stop triggering reloads
+        cache.set("recognition_db_version", time.time(), timeout=None)
         
-        print(f"✅ Updated PKL for {name} (File: {filename})")
+        print(f"✅ Updated PKL for {name} (Version: {time.time()})")
     except Exception as e:
         print(f"❌ PKL Save Failed: {e}")
 

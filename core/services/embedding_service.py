@@ -39,7 +39,8 @@ class EmbeddingService:
                 pickle.dump(db, f)
             
             # Helper to trigger Hot-Reload
-            cache.set("recognition_db_version", time.time())
+            # Set persistent timeout so stream picks it up definitely
+            cache.set("recognition_db_version", time.time(), timeout=None)
             print("✅ DB Saved & Hot-Reload Triggered")
             return True
         except Exception as e:

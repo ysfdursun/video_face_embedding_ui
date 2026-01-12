@@ -99,6 +99,21 @@ def merge():
     
     save_pkl(target_db, TARGET_FILE)
     print(f"💾 Saved to {TARGET_FILE}")
+    
+    # Trigger Hot-Reload if Django is available
+    try:
+        import sys
+        # Add project root to path if needed (assuming script is in root)
+        sys.path.append(os.getcwd())
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'face_embedding_project.settings')
+        import django
+        django.setup()
+        from django.core.cache import cache
+        import time
+        cache.set("recognition_db_version", time.time(), timeout=None)
+        print("✅ Hot-Reload Triggered (recognition_db_version updated)")
+    except Exception as e:
+        print(f"⚠️ Could not trigger hot-reload (Django environment issue?): {e}")
 
 if __name__ == "__main__":
     merge()

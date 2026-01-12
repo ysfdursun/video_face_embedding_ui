@@ -437,10 +437,12 @@ class VideoFaceRecognizer:
             if frame_count % 30 == 0:
                 try:
                     current_ver = float(cache.get("recognition_db_version", 0))
+                    # print(f"🔍 DB Check: Cache={current_ver} vs Loaded={self.loaded_version}") # DEBUG
                     if current_ver > self.loaded_version:
-                        print(f"🔄 Database update detected (v{current_ver}). Reloading...")
+                        print(f"🔄 Database update detected (v{current_ver} > v{self.loaded_version}). Reloading...")
                         self.load_database()
-                except: pass
+                except Exception as e:
+                    print(f"⚠️ Hot-reload check failed: {e}")
             
             # --- Detection & Recognition ---
             if frame_count % stride == 1:
